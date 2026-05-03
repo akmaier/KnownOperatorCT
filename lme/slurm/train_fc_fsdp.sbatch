@@ -7,9 +7,14 @@
 #SBATCH --gres=gpu:4
 #SBATCH --time=23:59:00
 #SBATCH --signal=B:USR1@180
-# Want 4 same-type GPUs on one node. lme49 is broken; lme50 mixes Titan + 1080 Ti.
-# lme170/lme171 only have 2 GPUs and are filtered out by --gres=gpu:4 anyway.
-#SBATCH --exclude=lme49,lme50,lme171
+# Need 4 same-type GPUs on one node, each with >=24 GB. The FC FSDP path
+# all-gathers 5.6 GB of weights for forward AND another 5.6 GB for backward;
+# 16 GB nodes (V100, RTX 5000, 1080 Ti) don't fit even with CPU offload —
+# observed in jobs 760108, 760111, 760114 on lme222.
+# That leaves lme221 (4x RTX 6000, 24 GB) as the only viable LME target.
+# lme49 is broken; lme50 mixes GPU types; lme170/171 have <4 GPUs (filtered
+# out by --gres=gpu:4 anyway) and are also broken.
+#SBATCH --exclude=lme49,lme50,lme51,lme52,lme53,lme171,lme222,lme223
 #SBATCH --output=results/slurm/train_fc_fsdp-%j.out
 #SBATCH --error=results/slurm/train_fc_fsdp-%j.err
 #
