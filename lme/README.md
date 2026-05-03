@@ -1,4 +1,15 @@
-# Running on LME Lab Machines
+# Running on LME Lab Machines and the LME Slurm Cluster
+
+There are two ways to run on LME hardware:
+
+1. **Direct SSH to a lab machine** (`run_*.sh` here) — quick iteration, no
+   queue. Use during development.
+2. **Slurm batch jobs on the LME cluster** (`slurm/*.sbatch` plus
+   `slurm/submit_chain.sh`) — the right way to run the full reproduction:
+   it queues, schedules, and (importantly) auto-resumes from checkpoints if
+   a job hits the documented 24-hour wall-time limit. See
+   [`slurm/`](slurm/) for the wrappers and
+   [`lme_cluster.md`](lme_cluster.md) for the cluster manual.
 
 ## Machine → Experiment Matrix
 
@@ -43,3 +54,83 @@ CUDA_VISIBLE_DEVICES=1 bash lme/run_ko.sh     # Use a different GPU
 | Surrogate (CPU) | ~2 min | ~2 min | ~2 min | ~2 min |
 | KO train (512×512, 10k iter) | ~60 min | ~30 min | ~30 min | ~20 min |
 | FC train (256×256, 10k iter) | ~30 min | ~15 min | ~15 min | ~10 min |
+
+## Running on the LME Slurm Cluster
+
+The cluster has a soft 24-hour wall-time limit per job. Our trainers now
+checkpoint every `training.checkpoint_every` iterations (see configs) and
+catch SIGTERM / SIGUSR1 cleanly, so a job killed at the time limit leaves a
+resume snapshot at `results/checkpoints/<model>.resume.pt`. The sbatch
+wrappers under [`slurm/`](slurm/) auto-resubmit with `--dependency=afterok`
+until each model writes its `<model>.done` sentinel.
+
+### One-time setup
+
+```bash
+# from your laptop
+ssh <ldap>@cluster.i5.informatik.uni-erlangen.de
+
+# on the submit node (lme242):
+mkdir -p /cluster/$(whoami) && cd /cluster/$(whoami)
+git clone git@github.com:akmaier/KnownOperatorCT.git known_operator_ct_release
+cd known_operator_ct_release
+bash lme/slurm/setup.sh        # builds .venv on /cluster, verifies torch+CUDA on a compute node
+```
+
+`setup.sh` insists the repo lives on `/cluster/<user>` because compute nodes
+mount `/cluster` (and `/scratch` for transient data) but heavy I/O against
+`/home` slows every user down.
+
+### Submit the full pipeline
+
+```bash
+cd /cluster/$(whoami)/known_operator_ct_release
+
+# default: FC trains on a single big GPU (lme170/lme171/lme221)
+bash lme/slurm/submit_chain.sh
+
+# alternative: FC trains via 4-GPU FSDP (lme51/52/53/222/223)
+bash lme/slurm/submit_chain.sh --fsdp
+```
+
+The chain is:
+`surrogate → {ko_train → ko_eval, fc_train → fc_eval} → harvest`. Each
+edge is an `afterok` dependency, so a real failure halts downstream work
+instead of running on stale state.
+
+### Watching jobs
+
+```bash
+squeue -u $(whoami)                    # your jobs
+sinfo -h -o "%n %T %G"                 # node + GPU types per node
+tail -f results/slurm/train_ko-*.out   # live log of the latest KO step
+```
+
+### What gets written
+
+* `results/checkpoints/<model>.resume.pt` — periodic snapshot, removed on completion
+* `results/checkpoints/<model>.pt`        — final weights (eval reads this)
+* `results/checkpoints/<model>.done`      — empty sentinel signalling completion
+* `results/ct_<model>_metrics.json`       — full training metrics
+* `results/ct_<model>_eval.json`          — test-set metrics
+* `results/RESULTS.md`                    — final harvest report
+* `results/slurm/<job>-<id>.out|err`      — per-job stdout / stderr
+
+### Individual jobs
+
+If you'd rather submit pieces by hand:
+
+```bash
+sbatch lme/slurm/surrogate.sbatch
+sbatch lme/slurm/train_ko.sbatch
+sbatch --export=ALL,MODEL=known_operator,CONFIG=configs/ct_full_resolution.yaml lme/slurm/eval.sbatch
+sbatch lme/slurm/train_fc.sbatch          # or: lme/slurm/train_fc_fsdp.sbatch
+sbatch --export=ALL,MODEL=fully_connected,CONFIG=configs/ct_fc_lme.yaml lme/slurm/eval.sbatch
+sbatch lme/slurm/harvest.sbatch
+```
+
+Override the resubmission cap with `LME_MAX_CHAIN`:
+
+```bash
+sbatch --export=ALL,LME_MAX_CHAIN=20 lme/slurm/train_ko.sbatch
+```
