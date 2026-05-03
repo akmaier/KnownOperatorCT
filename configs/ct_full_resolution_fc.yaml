@@ -1,0 +1,38 @@
+experiment_name: known_operator_ct_fc_full_resolution
+
+# Full-resolution FC model: same geometry as ct_full_resolution.yaml.
+# FC weight matrix: (512^2) * (180 * 512) = 24,159,191,040 parameters
+#   FP32 weights: ~90 GB, Adam state: ~360 GB
+# Requires FSDP across 4x H100 (94 GB each) with CPU offload.
+# Use ct_train_distributed.py, NOT ct_train.py.
+
+geometry:
+  image_size: 512
+  num_views: 180
+  detector_bins: 512
+  angular_range_degrees: 180.0
+  source_to_iso_mm: 1000.0
+  source_to_detector_mm: 1500.0
+  detector_pixel_mm: 1.0
+
+dataset:
+  num_train_slices: 2140
+  num_val_slices: 119
+  num_test_slices: 119
+  num_folds: 1
+  ellipses_per_slice: [3, 6]
+  noise_sigma: 0.005
+  seed: 1
+
+training:
+  batch_size: 1
+  num_iterations: 10000
+  learning_rate: 2.0e-2
+  optimizer: adagrad
+  log_every: 100
+  checkpoint_every: 2000
+  device: cuda
+
+reporting:
+  out_dir: results
+  results_markdown: results/RESULTS.md
