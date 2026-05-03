@@ -37,6 +37,15 @@ source lme/slurm/_train_lib.sh
 # that fragmented space. Observed in job 760108 (lme222, 4x RTX 5000).
 export PYTORCH_CUDA_ALLOC_CONF="expandable_segments:True"
 
+# Force CPU offload of FSDP parameter shards even on 24 GB GPUs. Without
+# offload, FSDP keeps the unsharded forward all-gather (5.6 GB) plus the
+# backward all-gather (5.6 GB) plus per-rank shards in GPU memory at the
+# same time — 20 GB allocated before the next op tries to grab another
+# 5.6 GB and OOMs (observed in job 760117 on lme221, 4x RTX 6000 24 GB).
+# With offload the parameter shard lives on host and only the unsharded
+# all-gather lives on GPU during fwd/bwd. Trades H2D bandwidth for headroom.
+export FSDP_CPU_OFFLOAD=1
+
 CHAIN_IDX="${LME_CHAIN_IDX:-1}"
 DONE_MARKER="results/checkpoints/fully_connected.done"
 
