@@ -67,6 +67,15 @@ fi
 # shellcheck disable=SC1091
 source .venv/bin/activate
 pip install --upgrade pip wheel
+
+# The default PyPI torch wheel is built against CUDA 13, which needs an NVIDIA
+# driver >= 545. The LME compute nodes are on driver 535.x (CUDA 12.x), so we
+# install the cu121 wheels explicitly. Re-running setup.sh re-pins torch.
+pip install --upgrade --index-url https://download.pytorch.org/whl/cu121 \
+    torch torchvision
+
+# Remaining deps from PyPI; pip leaves the cu121 torch in place because it
+# already satisfies the `torch>=2.2` constraint.
 pip install -r requirements.txt
 
 echo
