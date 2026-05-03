@@ -52,4 +52,6 @@ fi
 run_step "surrogate" python src/run_surrogate.py --config configs/ct_surrogate.yaml
 run_step "ct_train_known_operator" python src/ct_train.py --config configs/ct_full_resolution.yaml --model known_operator
 run_step "ct_eval_known_operator" python src/ct_eval.py --config configs/ct_full_resolution.yaml --model known_operator
+run_step "ct_train_fully_connected" python src/ct_train.py --config configs/ct_full_resolution.yaml --model fully_connected
+run_step "ct_eval_fully_connected" python src/ct_eval.py --config configs/ct_full_resolution.yaml --model fully_connected
 run_step "harvest" python src/harvest_results.py --output results/RESULTS.md

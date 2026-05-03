@@ -91,6 +91,8 @@ def main() -> None:
     surrogate_json = safe_load_json(results_dir / "surrogate_results.json")
     train_metrics = safe_load_json(results_dir / "ct_known_operator_metrics.json")
     eval_metrics = safe_load_json(results_dir / "ct_known_operator_eval.json")
+    fc_train_metrics = safe_load_json(results_dir / "ct_fully_connected_metrics.json")
+    fc_eval_metrics = safe_load_json(results_dir / "ct_fully_connected_eval.json")
     steps_csv = results_dir / "run_all_steps.csv"
 
     sections: list[str] = []
@@ -160,6 +162,42 @@ def main() -> None:
             ["mean inference time ms", f"{eval_metrics['inference_time_ms']['mean']:.2f}"],
             ["rRMSE trained (mean)", f"{eval_metrics['rrmse_trained']['mean']:.4e}"],
             ["rRMSE analytic baseline (mean)", f"{eval_metrics['rrmse_analytic_baseline']['mean']:.4e}"],
+        ]
+        sections.append(fmt_table(["Metric", "Value"], rows))
+
+    # Full-resolution FC training
+    sections.append("\n## Full-resolution CT training (fully connected)")
+    if fc_train_metrics is None:
+        sections.append("_No FC training metrics found. The FC training stage may have been skipped or failed; see `run_all.log`._")
+    else:
+        g = fc_train_metrics["geometry"]
+        rows = [
+            ["image size", f"{g['image_size']} × {g['image_size']}"],
+            ["views", str(g["num_views"])],
+            ["detector bins", str(g["detector_bins"])],
+            ["training slices", str(fc_train_metrics.get("num_training_slices", "?"))],
+            ["batch size", str(fc_train_metrics["training"]["batch_size"])],
+            ["iterations", str(fc_train_metrics["training"]["num_iterations"])],
+            ["wall time s", f"{fc_train_metrics.get('wall_time_seconds', float('nan')):.2f}"],
+            ["peak GPU memory MB", f"{fc_train_metrics.get('peak_gpu_memory_bytes', 0) / (1024 ** 2):.1f}"],
+            ["device", fc_train_metrics.get("device", "unknown")],
+        ]
+        sections.append(fmt_table(["Field", "Value"], rows))
+        if fc_train_metrics["iterations"]:
+            last = fc_train_metrics["iterations"][-1]
+            sections.append(f"\nLast logged training loss at iter {last['iter']}: **{last['loss']:.6f}**")
+
+    # Full-resolution FC evaluation
+    sections.append("\n## Full-resolution CT evaluation (fully connected)")
+    if fc_eval_metrics is None:
+        sections.append("_No FC evaluation metrics found. The FC evaluation stage may have been skipped or failed; see `run_all.log`._")
+    else:
+        rows = [
+            ["test slices", str(fc_eval_metrics["num_test_slices"])],
+            ["wall time s", f"{fc_eval_metrics['wall_time_seconds']:.2f}"],
+            ["mean inference time ms", f"{fc_eval_metrics['inference_time_ms']['mean']:.2f}"],
+            ["rRMSE trained (mean)", f"{fc_eval_metrics['rrmse_trained']['mean']:.4e}"],
+            ["rRMSE analytic baseline (mean)", f"{fc_eval_metrics['rrmse_analytic_baseline']['mean']:.4e}"],
         ]
         sections.append(fmt_table(["Metric", "Value"], rows))
 
