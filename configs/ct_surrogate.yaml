@@ -1,0 +1,16 @@
+experiment_name: known_operator_ct_surrogate
+
+geometry:
+  image_side: 16
+  num_angles: 20
+
+ablation:
+  train_sizes: [4, 8, 16, 32, 64, 128]
+  num_train_pool: 256
+  num_val: 32
+  num_test: 128
+  seeds: [1, 2, 3, 4, 5]
+  lambda_grid: [1.0e-6, 1.0e-4, 1.0e-2, 1.0, 1.0e+2]
+
+reporting:
+  out_dir: results
