@@ -9,7 +9,7 @@
 #SBATCH --signal=B:USR1@180
 # Want 4 same-type GPUs on one node. lme49 is broken; lme50 mixes Titan + 1080 Ti.
 # lme170/lme171 only have 2 GPUs and are filtered out by --gres=gpu:4 anyway.
-#SBATCH --exclude=lme49,lme50
+#SBATCH --exclude=lme49,lme50,lme171
 #SBATCH --output=results/slurm/train_fc_fsdp-%j.out
 #SBATCH --error=results/slurm/train_fc_fsdp-%j.err
 #

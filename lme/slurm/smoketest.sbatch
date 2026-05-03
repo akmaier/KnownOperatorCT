@@ -5,7 +5,7 @@
 #SBATCH --mem=8G
 #SBATCH --gres=gpu:1
 #SBATCH --time=00:05:00
-#SBATCH --exclude=lme49
+#SBATCH --exclude=lme49,lme171
 #SBATCH --output=results/slurm/smoketest-%j.out
 #SBATCH --error=results/slurm/smoketest-%j.err
 #

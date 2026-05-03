@@ -24,6 +24,11 @@ case "$ROOT_DIR" in
         ;;
 esac
 
+# Pre-create the directories Slurm needs to write into. Slurm opens
+# --output / --error paths *before* our sbatch script gets to run, so any
+# in-script `mkdir -p results/slurm` is too late on the first run.
+mkdir -p results/slurm results/checkpoints
+
 echo "Building venv at $ROOT_DIR/.venv ..."
 echo "(this needs network — only the submit node has it; running here.)"
 
@@ -66,7 +71,7 @@ pip install -r requirements.txt
 
 echo
 echo "Verifying torch + CUDA on a compute node (1 GPU, 5 min)..."
-srun --gres=gpu:1 --time=5 --exclude=lme49 \
+srun --gres=gpu:1 --time=5 --exclude=lme49,lme171 \
     bash -c "source $ROOT_DIR/.venv/bin/activate && python -c '
 import torch
 print(f\"PyTorch {torch.__version__}\")

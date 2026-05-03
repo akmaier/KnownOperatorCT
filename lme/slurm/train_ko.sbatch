@@ -6,7 +6,7 @@
 #SBATCH --gres=gpu:1
 #SBATCH --time=23:59:00
 #SBATCH --signal=B:USR1@180
-#SBATCH --exclude=lme49
+#SBATCH --exclude=lme49,lme171
 #SBATCH --output=results/slurm/train_ko-%j.out
 #SBATCH --error=results/slurm/train_ko-%j.err
 #

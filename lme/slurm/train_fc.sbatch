@@ -8,7 +8,7 @@
 #SBATCH --signal=B:USR1@180
 # Need a single GPU with >=24 GB for the FC model at 256x256.
 # That restricts us to lme170/lme171 (RTX 8000, 48 GB) and lme221 (RTX 6000, 24 GB).
-#SBATCH --exclude=lme49,lme50,lme51,lme52,lme53,lme222,lme223
+#SBATCH --exclude=lme49,lme50,lme51,lme52,lme53,lme171,lme222,lme223
 #SBATCH --output=results/slurm/train_fc-%j.out
 #SBATCH --error=results/slurm/train_fc-%j.err
 #

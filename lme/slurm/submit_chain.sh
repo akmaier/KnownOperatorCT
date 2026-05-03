@@ -24,6 +24,9 @@ set -euo pipefail
 
 cd "$(dirname "${BASH_SOURCE[0]}")/../.."
 
+# Slurm opens the --output / --error paths before the sbatch script runs.
+mkdir -p results/slurm results/checkpoints
+
 FC_MODE="single"
 if [ "${1:-}" = "--fsdp" ]; then
     FC_MODE="fsdp"
