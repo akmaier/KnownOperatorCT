@@ -70,12 +70,37 @@ pip install --upgrade pip wheel
 
 # The default PyPI torch wheel is built against CUDA 13, which needs an NVIDIA
 # driver >= 545. The LME compute nodes are on driver 535.x (CUDA 12.x), so we
-# install the cu121 wheels explicitly. Re-running setup.sh re-pins torch.
-pip install --upgrade --index-url https://download.pytorch.org/whl/cu121 \
-    torch torchvision
+# install the cu121 wheels explicitly. If a cu130 (or other non-cu121) torch
+# is already in the venv from an earlier setup run, uninstall it first so pip
+# can downgrade — `pip install --upgrade` alone won't move backwards in
+# version, and unpinned --upgrade won't replace the installed wheel.
+INSTALLED_TORCH=$(pip show torch 2>/dev/null | awk '/^Version:/ {print $2}')
+case "$INSTALLED_TORCH" in
+    *+cu121) echo "torch $INSTALLED_TORCH already cu121; skipping reinstall." ;;
+    "")      echo "torch not installed yet." ;;
+    *)
+        echo "Uninstalling torch $INSTALLED_TORCH (need cu121 build for driver 535.x)..."
+        pip uninstall -y torch torchvision || true
+        # Drop the cu13 helper packages dragged in by the cu130 wheel — they're
+        # unused once torch is gone and just waste space on the shared FS.
+        pip uninstall -y \
+            cuda-toolkit cuda-bindings cuda-pathfinder \
+            nvidia-cudnn-cu13 nvidia-cusparselt-cu13 nvidia-nccl-cu13 \
+            nvidia-nvshmem-cu13 nvidia-cufft nvidia-cublas nvidia-cusparse \
+            nvidia-nvtx nvidia-cufile nvidia-nvjitlink nvidia-cuda-cupti \
+            nvidia-cuda-nvrtc nvidia-cuda-runtime nvidia-cusolver nvidia-curand \
+            triton 2>/dev/null || true
+        ;;
+esac
 
-# Remaining deps from PyPI; pip leaves the cu121 torch in place because it
-# already satisfies the `torch>=2.2` constraint.
+if [ "${INSTALLED_TORCH}" != "${INSTALLED_TORCH%+cu121}" ] && [ -n "$INSTALLED_TORCH" ]; then
+    : # cu121 already
+else
+    pip install --index-url https://download.pytorch.org/whl/cu121 torch torchvision
+fi
+
+# Remaining deps from PyPI; pip leaves cu121 torch in place because it already
+# satisfies `torch>=2.2`.
 pip install -r requirements.txt
 
 echo
