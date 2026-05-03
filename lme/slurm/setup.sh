@@ -27,9 +27,25 @@ esac
 echo "Building venv at $ROOT_DIR/.venv ..."
 echo "(this needs network — only the submit node has it; running here.)"
 
+# `python3 -m venv` is broken on lme242 because the system python3.10 ships
+# without ensurepip. Prefer virtualenv (installed at /usr/bin/virtualenv);
+# fall back to `venv --without-pip` + get-pip.py bootstrap if virtualenv is
+# ever uninstalled.
 if [ ! -d .venv ]; then
-    python3 -m venv .venv
+    if command -v virtualenv >/dev/null 2>&1; then
+        virtualenv --python=python3 .venv
+    elif python3 -c "import ensurepip" >/dev/null 2>&1; then
+        python3 -m venv .venv
+    else
+        echo "Bootstrapping pip into a --without-pip venv ..."
+        python3 -m venv --without-pip .venv
+        # shellcheck disable=SC1091
+        source .venv/bin/activate
+        curl -sS https://bootstrap.pypa.io/get-pip.py | python
+        deactivate
+    fi
 fi
+# shellcheck disable=SC1091
 source .venv/bin/activate
 pip install --upgrade pip wheel
 pip install -r requirements.txt
