@@ -31,7 +31,14 @@ echo "(this needs network — only the submit node has it; running here.)"
 # without ensurepip. Prefer virtualenv (installed at /usr/bin/virtualenv);
 # fall back to `venv --without-pip` + get-pip.py bootstrap if virtualenv is
 # ever uninstalled.
-if [ ! -d .venv ]; then
+#
+# Trigger on the absence of activate (not the .venv dir) so a previous
+# half-built env doesn't trick us into skipping creation.
+if [ ! -e .venv/bin/activate ]; then
+    if [ -d .venv ]; then
+        echo "Removing incomplete .venv from a previous attempt ..."
+        rm -rf .venv
+    fi
     if command -v virtualenv >/dev/null 2>&1; then
         virtualenv --python=python3 .venv
     elif python3 -c "import ensurepip" >/dev/null 2>&1; then
@@ -45,6 +52,13 @@ if [ ! -d .venv ]; then
         deactivate
     fi
 fi
+
+if [ ! -e .venv/bin/activate ]; then
+    echo "ERROR: venv creation failed; .venv/bin/activate not present" >&2
+    ls -la .venv 2>/dev/null || true
+    exit 1
+fi
+
 # shellcheck disable=SC1091
 source .venv/bin/activate
 pip install --upgrade pip wheel
