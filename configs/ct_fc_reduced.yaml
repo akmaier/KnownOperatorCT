@@ -1,0 +1,39 @@
+experiment_name: known_operator_ct_fc_reduced
+
+# Reduced resolution for the fully connected model.
+# At 128x128 with 60 views, the FC weight matrix is:
+#   (128^2) * (60 * 128) = 16384 * 7680 = 125,829,120 params
+#   FP32: ~480 MB weights, ~1.9 GB Adam state — fits on any GPU >= 8 GB.
+# This allows direct comparison between KO and FC at a tractable scale
+# while still being far larger than the surrogate (16x16).
+
+geometry:
+  image_size: 128
+  num_views: 60
+  detector_bins: 128
+  angular_range_degrees: 180.0
+  source_to_iso_mm: 1000.0
+  source_to_detector_mm: 1500.0
+  detector_pixel_mm: 1.0
+
+dataset:
+  num_train_slices: 500
+  num_val_slices: 50
+  num_test_slices: 50
+  num_folds: 1
+  ellipses_per_slice: [3, 6]
+  noise_sigma: 0.005
+  seed: 1
+
+training:
+  batch_size: 4
+  num_iterations: 5000
+  learning_rate: 2.0e-2
+  optimizer: adagrad
+  log_every: 100
+  checkpoint_every: 1000
+  device: cuda
+
+reporting:
+  out_dir: results
+  results_markdown: results/RESULTS.md
