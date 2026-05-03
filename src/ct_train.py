@@ -12,13 +12,14 @@ import yaml
 from torch import nn
 
 from ct_dataset import FanBeamGeometry, iter_slice_dataset
-from ct_models import KnownOperatorReconstructor, parameter_counts
+from ct_models import FullyConnectedReconstructor, KnownOperatorReconstructor, parameter_counts
 
 
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser()
     parser.add_argument("--config", required=True)
-    parser.add_argument("--model", choices=["known_operator"], default="known_operator")
+    parser.add_argument("--model", choices=["known_operator", "fully_connected"],
+                        default="known_operator")
     return parser.parse_args()
 
 
@@ -49,13 +50,13 @@ def main() -> None:
     device = torch.device(cfg["training"]["device"] if torch.cuda.is_available() else "cpu")
     geometry = make_geometry(cfg)
 
-    if args.model != "known_operator":
-        raise SystemExit(
-            "Only the known_operator model is trained by this script; the fully connected "
-            "counterfactual is not run because of its memory footprint."
-        )
+    if args.model == "known_operator":
+        model = KnownOperatorReconstructor(geometry).to(device)
+    elif args.model == "fully_connected":
+        model = FullyConnectedReconstructor.from_geometry(geometry).to(device)
+    else:
+        raise SystemExit(f"Unknown model: {args.model}")
 
-    model = KnownOperatorReconstructor(geometry).to(device)
     optimizer = torch.optim.Adagrad(model.parameters(), lr=cfg["training"]["learning_rate"])
     loss_fn = nn.MSELoss()
 

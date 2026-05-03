@@ -1,0 +1,32 @@
+experiment_name: known_operator_ct_test_small
+
+geometry:
+  image_size: 32
+  num_views: 20
+  detector_bins: 32
+  angular_range_degrees: 180.0
+  source_to_iso_mm: 1000.0
+  source_to_detector_mm: 1500.0
+  detector_pixel_mm: 1.0
+
+dataset:
+  num_train_slices: 4
+  num_val_slices: 2
+  num_test_slices: 2
+  num_folds: 1
+  ellipses_per_slice: [2, 4]
+  noise_sigma: 0.005
+  seed: 42
+
+training:
+  batch_size: 2
+  num_iterations: 50
+  learning_rate: 2.0e-2
+  optimizer: adagrad
+  log_every: 10
+  checkpoint_every: 25
+  device: cpu
+
+reporting:
+  out_dir: results_test
+  results_markdown: results_test/RESULTS.md

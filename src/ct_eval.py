@@ -12,13 +12,14 @@ import torch
 import yaml
 
 from ct_dataset import FanBeamGeometry, iter_slice_dataset
-from ct_models import KnownOperatorReconstructor
+from ct_models import FullyConnectedReconstructor, KnownOperatorReconstructor
 
 
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser()
     parser.add_argument("--config", required=True)
-    parser.add_argument("--model", choices=["known_operator"], default="known_operator")
+    parser.add_argument("--model", choices=["known_operator", "fully_connected"],
+                        default="known_operator")
     return parser.parse_args()
 
 
@@ -55,13 +56,22 @@ def main() -> None:
     device = torch.device(cfg["training"]["device"] if torch.cuda.is_available() else "cpu")
     geometry = make_geometry(cfg)
 
-    model = KnownOperatorReconstructor(geometry).to(device)
+    if args.model == "known_operator":
+        model = KnownOperatorReconstructor(geometry).to(device)
+    elif args.model == "fully_connected":
+        model = FullyConnectedReconstructor.from_geometry(geometry).to(device)
+    else:
+        raise SystemExit(f"Unknown model: {args.model}")
+
     ckpt_path = out_dir / "checkpoints" / f"{args.model}.pt"
     if ckpt_path.exists():
         model.load_state_dict(torch.load(ckpt_path, map_location=device))
 
     seed = cfg["dataset"]["seed"] + 1000
     num_test = cfg["dataset"]["num_test_slices"]
+
+    analytic_baseline = KnownOperatorReconstructor(geometry).to(device)
+    analytic_baseline.eval()
 
     rrmse_trained = []
     rrmse_analytic = []
@@ -81,11 +91,8 @@ def main() -> None:
         inference_times_ms.append(1000.0 * (time.perf_counter() - t0))
         rrmse_trained.append(rrmse(recon, image))
 
-        # Analytic baseline: same architecture with weights frozen at the
-        # initialization, i.e. without any training of the diagonal layer.
-        baseline = KnownOperatorReconstructor(geometry).to(device)
         with torch.no_grad():
-            recon_baseline = baseline(sino)
+            recon_baseline = analytic_baseline(sino)
         rrmse_analytic.append(rrmse(recon_baseline, image))
 
     elapsed = time.perf_counter() - start
