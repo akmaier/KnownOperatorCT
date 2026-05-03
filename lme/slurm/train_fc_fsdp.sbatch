@@ -25,6 +25,13 @@ mkdir -p results/slurm results/checkpoints
 source .venv/bin/activate
 source lme/slurm/_train_lib.sh
 
+# FSDP all-gathers the full 5.6 GB weight matrix on every rank during forward
+# and again during backward. On 16 GB GPUs (V100, RTX 5000) PyTorch's caching
+# allocator fragments and the second all-gather OOMs even though 4 GB is
+# reserved-but-unallocated. expandable_segments=True lets the allocator reuse
+# that fragmented space. Observed in job 760108 (lme222, 4x RTX 5000).
+export PYTORCH_CUDA_ALLOC_CONF="expandable_segments:True"
+
 CHAIN_IDX="${LME_CHAIN_IDX:-1}"
 DONE_MARKER="results/checkpoints/fully_connected.done"
 

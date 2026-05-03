@@ -20,11 +20,17 @@ Machines with < 24 GB GPUs use FSDP to shard across multiple GPUs.
 |---------|------|:------------:|:------------:|-----------|
 | **lme170/171** | 2× RTX 8000 (48 GB) | ✅ 1 GPU | ✅ 1 GPU | `run_fc.sh` |
 | **lme49** | 1× A6000 (48 GB) | ✅ 1 GPU | ✅ 1 GPU | `run_fc.sh` |
-| **lme221** | 4× RTX 6000 (24 GB) | ✅ 1 GPU | ✅ 1 GPU | `run_fc.sh` |
+| **lme221** | 4× RTX 6000 (24 GB) | ✅ 1 GPU | ❌ OOM in backward | use FSDP instead |
 | **lme53** | 4× V100 (16 GB) | ✅ 1 GPU | ✅ 4-GPU FSDP | `run_fc_fsdp.sh` |
 | **lme222/223** | 4× RTX 5000 (16 GB) | ✅ 1 GPU | ✅ 4-GPU FSDP | `run_fc_fsdp.sh` |
 | **lme51/52** | 4× 1080 Ti (11 GB) | ✅ 1 GPU | ✅ 4-GPU FSDP | `run_fc_fsdp.sh` |
 | **lme50** | 1× Titan XP + 3× 1080 Ti | ✅ 1 GPU | ⚠️ Titan only | `CUDA_VISIBLE_DEVICES=0 run_fc.sh` (Titan 12 GB, tight) |
+
+> **Note on lme221.** The 24 GB RTX 6000 fits the FC weights and Adagrad
+> state, but PyTorch needs another ~5.6 GB for gradients and ~3 GB for
+> backward-pass activations on top of that — the total exceeds 24 GB and
+> OOMs (observed in cluster job 760105). On 24 GB hardware, run FC via
+> FSDP instead (`run_fc_fsdp.sh` or `lme/slurm/train_fc_fsdp.sbatch`).
 
 For the full-resolution FC (512×512, 24B params), use Helma (see `slurm/` directory).
 
@@ -86,11 +92,12 @@ mount `/cluster` (and `/scratch` for transient data) but heavy I/O against
 ```bash
 cd /cluster/$(whoami)/known_operator_ct_release
 
-# default: FC trains on a single big GPU (lme170/lme171/lme221)
+# default: FC trains via 4-GPU FSDP (lme51/52/53/221/222/223)
 bash lme/slurm/submit_chain.sh
 
-# alternative: FC trains via 4-GPU FSDP (lme51/52/53/222/223)
-bash lme/slurm/submit_chain.sh --fsdp
+# opt-in: FC trains on a single 48 GB GPU (lme170 only — lme49/171 broken,
+# lme221's 24 GB OOMs). Usually pends on lme170 unless it's free.
+bash lme/slurm/submit_chain.sh --single
 ```
 
 The chain is:

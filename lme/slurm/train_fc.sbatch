@@ -6,9 +6,16 @@
 #SBATCH --gres=gpu:1
 #SBATCH --time=23:59:00
 #SBATCH --signal=B:USR1@180
-# Need a single GPU with >=24 GB for the FC model at 256x256.
-# That restricts us to lme170/lme171 (RTX 8000, 48 GB) and lme221 (RTX 6000, 24 GB).
-#SBATCH --exclude=lme49,lme50,lme51,lme52,lme53,lme171,lme222,lme223
+# Need a single GPU with ~32 GB free for the FC model at 256x256: 5.6 GB
+# weights + 5.6 GB Adagrad state + 5.6 GB gradients + activations. lme221
+# (24 GB RTX 6000) OOMs in the backward pass — observed in job 760105.
+# So restrict to the 48 GB nodes only:
+#   lme170/lme171 (RTX 8000) and lme49 (A6000).
+# lme49 and lme171 are currently broken (NVML mismatch on lme171, unknown
+# state on lme49), so in practice this lands on lme170 only — which is
+# usually busy. Use train_fc_fsdp.sbatch instead unless you specifically
+# want a single-GPU run.
+#SBATCH --exclude=lme49,lme50,lme51,lme52,lme53,lme171,lme221,lme222,lme223
 #SBATCH --output=results/slurm/train_fc-%j.out
 #SBATCH --error=results/slurm/train_fc-%j.err
 #
@@ -23,6 +30,9 @@ cd "$SLURM_SUBMIT_DIR"
 mkdir -p results/slurm results/checkpoints
 source .venv/bin/activate
 source lme/slurm/_train_lib.sh
+
+# Help the caching allocator avoid fragmentation (matches the FSDP wrapper).
+export PYTORCH_CUDA_ALLOC_CONF="expandable_segments:True"
 
 CHAIN_IDX="${LME_CHAIN_IDX:-1}"
 DONE_MARKER="results/checkpoints/fully_connected.done"
