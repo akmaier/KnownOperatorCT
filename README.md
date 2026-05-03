@@ -49,7 +49,7 @@ bash run_all.sh
 2. **Full-resolution GPU CT training.** Slice-wise $512 \times 512$ fan-beam reconstruction with $180$ views, using the operator-aware filtered backprojection network. Reports test rRMSE and per-fold timings.
 3. **Bound-inspired full-scale estimate.** Sample-complexity proxy and parameter and runtime predictions from the deep risk estimator (Theorem 1 of the paper). Computed deterministically from the configuration.
 
-The fully connected counterfactual at full resolution is **not trained** by default because its memory footprint exceeds typical single-GPU budgets ($\sim 90$ GB FP32 weights + $\sim 360$ GB Adam state). The bundle reports the bound-inspired prediction for that case and runs the dense baseline only at the surrogate scale.
+The fully connected counterfactual collapses the entire reconstruction pipeline into a single learned dense matrix $M$ that maps projections directly to image pixels, followed by a fixed ReLU: $\hat{y}_{\text{FC}} = \text{ReLU}(M\,x)$. At full resolution it is **not trained** by default because its memory footprint exceeds typical single-GPU budgets ($p_{\text{FC}} = N_{\text{pixels}} \cdot N_{\text{measurements}} \approx 2.42 \cdot 10^{10}$ parameters, $\sim 90$ GB FP32 weights + $\sim 360$ GB Adam state). The bundle reports the bound-inspired prediction for that case and runs the dense baseline only at the surrogate scale.
 
 ## License of new assets
 

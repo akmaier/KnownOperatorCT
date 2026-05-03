@@ -208,6 +208,7 @@ def main() -> None:
     num_views = geom.get("num_views", 180)
     detector_bins = geom.get("detector_bins", 512)
     p_ko = num_views * detector_bins
+    # single learned dense matrix mapping projections to image pixels
     p_fc = (image_size ** 2) * p_ko
     weight_bytes_fc = p_fc * 4.0
     adam_bytes_fc = p_fc * 16.0

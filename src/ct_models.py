@@ -3,8 +3,9 @@
 The known operator network mirrors the architecture of Wuerfl et al. (2018) and
 Maier et al. (2019): a trainable diagonal weighting layer in the projection
 domain followed by a fixed reconstruction filter and a fixed backprojection.
-The fully connected counterfactual replaces the backprojection by a dense
-learned linear layer.
+The fully connected counterfactual collapses the entire reconstruction
+pipeline into a single learned dense matrix that maps projections directly
+to image pixels.
 
 Reference GPU implementation: https://doi.org/10.24433/CO.2164960.v1
 """
@@ -144,12 +145,11 @@ class KnownOperatorReconstructor(nn.Module):
 
 
 class FullyConnectedReconstructor(nn.Module):
-    """FC net: learned dense projection-to-image map.
-
-    Works at both surrogate and full resolution.  At full resolution the weight
-    matrix is very large (image_size^2 x num_views*detector_bins) so this
-    should only be run on a device with sufficient memory.
-    """
+    """FC counterfactual: a single learned dense matrix M mapping projections to
+    image pixels, followed by a fixed ReLU. At full resolution (512x512 fan-beam,
+    180 views, 512 detector bins) the matrix has p_FC = num_pixels * num_measurements
+    = 2.42e10 parameters and is therefore not trained at full resolution; the deep
+    risk estimator's prediction for it is reported by the harvest script."""
 
     def __init__(self, num_inputs: int, num_outputs: int) -> None:
         super().__init__()

@@ -73,7 +73,7 @@ The harvest script populates the following sections automatically; the agent onl
 - Do not modify any file under `src/` or `configs/`. If the configuration is wrong for the available hardware, the agent should add a new file under `configs/` and pass it via `--config`.
 - Do not delete `results/` after the run. The reviewer will retrieve the directory.
 - Do not upload checkpoints or intermediate tensors to any third party. Only `results/RESULTS.md` is intended to be returned.
-- Do not attempt to run the fully connected counterfactual at full resolution. Its memory footprint is documented as $\sim 90$ GB FP32 weights and $\sim 360$ GB Adam state and exceeds single-GPU budgets. The harvest script reports the deep risk estimator prediction for that case from the configuration; an actual run is not required.
+- Do not attempt to run the fully connected counterfactual at full resolution. The full-resolution FC counterfactual is a single learned dense matrix of shape $(N_{\text{pixels}}, N_{\text{measurements}})$ followed by a fixed ReLU, with $p_{\text{FC}} = N_{\text{pixels}} \cdot N_{\text{measurements}} \approx 2.42 \cdot 10^{10}$ parameters. Its memory footprint is documented as $\sim 90$ GB FP32 weights and $\sim 360$ GB Adam state and exceeds single-GPU budgets. The harvest script reports the deep risk estimator prediction for that case from the configuration; an actual run is not required.
 
 ## 5. Reporting back
 

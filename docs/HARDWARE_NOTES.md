@@ -15,7 +15,9 @@ A single $512 \times 512$ slice with $180$ projections occupies under $1$ MB in 
 
 ## Fully connected counterfactual at full resolution
 
-- Trainable parameters: $2.42 \cdot 10^{10}$
+A single learned dense matrix $M$ of shape $(N_{\text{pixels}}, N_{\text{measurements}})$ followed by a fixed ReLU, mapping projections directly to image pixels.
+
+- Trainable parameters: $p_{\text{FC}} = N_{\text{pixels}} \cdot N_{\text{measurements}} \approx 2.42 \cdot 10^{10}$
 - FP32 weight memory: $\sim 90$ GB
 - Adam state memory (FP32 weights, FP32 moments): $\sim 360$ GB
 

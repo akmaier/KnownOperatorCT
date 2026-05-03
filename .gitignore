@@ -6,3 +6,8 @@ __pycache__/
 venv/
 .idea/
 .vscode/
+
+# run outputs — directory itself is tracked via .gitkeep, contents aren't
+/results/*
+!/results/.gitkeep
+/.archive/
