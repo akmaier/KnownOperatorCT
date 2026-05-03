@@ -161,14 +161,36 @@ def main() -> None:
         )
     dist.barrier()
 
-    use_cpu_offload = mem_gb > 40.0
+    # Decide whether to offload parameter shards to CPU. With FSDP FULL_SHARD,
+    # the weights are still all-gathered to every rank during forward and
+    # backward, so each rank must hold one full copy of the unsharded weights
+    # plus the gradients. On a 4-GPU FSDP run with 16 GB GPUs that means
+    # ~5.6 GB weights + ~5.6 GB grads + activations + cache > 16 GB and OOMs
+    # (observed in jobs 760108 and 760111 on lme222). CPU offload trades
+    # bandwidth for memory: parameter shards live on host, get H2D-copied for
+    # each forward/backward, freeing GPU room for the all-gather buffer.
+    #
+    # Trigger offload either when the model is bigger than the best LME GPU
+    # (>= 40 GB ≈ A6000), or when the per-rank shard plus an unsharded weight
+    # buffer wouldn't comfortably fit a 16 GB GPU. Override via FSDP_CPU_OFFLOAD=1.
+    per_gpu_gib = (
+        torch.cuda.get_device_properties(device).total_memory / 1024**3
+    )
+    auto_offload = mem_gb > 40.0 or (mem_gb * 2 + 1.0) > 0.6 * per_gpu_gib
+    use_cpu_offload = (
+        os.environ.get("FSDP_CPU_OFFLOAD", "").lower() in ("1", "true", "yes")
+        or auto_offload
+    )
     if use_cpu_offload:
-        log_rank0("Enabling FSDP CPU offload for optimizer state")
+        log_rank0(
+            f"Enabling FSDP CPU offload for parameter shards "
+            f"(mem_gb={mem_gb:.2f}, per_gpu_gib={per_gpu_gib:.1f})"
+        )
 
     model = FSDP(
         base_model.to(device),
         sharding_strategy=ShardingStrategy.FULL_SHARD,
-        cpu_offload=CPUOffload(offload_params=False) if use_cpu_offload else None,
+        cpu_offload=CPUOffload(offload_params=True) if use_cpu_offload else None,
         device_id=device,
     )
 
