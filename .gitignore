@@ -7,7 +7,18 @@ venv/
 .idea/
 .vscode/
 
-# run outputs — directory itself is tracked via .gitkeep, contents aren't
+# run outputs — track the canonical reference artifacts but not the
+# heavy/ephemeral pieces (multi-GB checkpoints, per-job slurm logs).
 /results/*
 !/results/.gitkeep
+!/results/RESULTS.md
+!/results/sample_efficiency.png
+!/results/surrogate_results.json
+!/results/surrogate_ablation.csv
+!/results/ct_known_operator_metrics.json
+!/results/ct_known_operator_eval.json
+!/results/ct_fully_connected_metrics.json
+!/results/ct_fully_connected_eval.json
+!/results/run_all.log
+!/results/run_all_steps.csv
 /.archive/
