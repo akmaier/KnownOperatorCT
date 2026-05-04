@@ -1,0 +1,40 @@
+experiment_name: ct_sample_efficiency_gpu_256
+
+# 256x256 fan-beam, 90 views, 256 detector bins.
+# FC weight matrix has 256*256 * 90*256 = 65536 * 23040 = 1.51B params
+# (FP32 weights ~5.6 GB, Adagrad state ~5.6 GB).
+#
+# Single-GPU peak during backward: weights (5.6) + Adagrad (5.6) + grads
+# (5.6) ~= 16.8 GB. Fits comfortably on a 24 GB+ GPU at batch_size=1.
+# Set PYTORCH_CUDA_ALLOC_CONF=expandable_segments:True in the sbatch to
+# defragment the caching allocator so the backward all-gather actually
+# fits.
+
+geometry:
+  image_size: 256
+  num_views: 90
+  detector_bins: 256
+  angular_range_degrees: 180.0
+  source_to_iso_mm: 1000.0
+  source_to_detector_mm: 1500.0
+  detector_pixel_mm: 1.0
+
+dataset:
+  num_test_slices: 50
+  ellipses_per_slice: [3, 6]
+  noise_sigma: 0.005
+  seed: 1
+
+ablation:
+  train_sizes: [4, 16, 64, 256, 1024]
+  seeds: [1, 2]
+
+training:
+  batch_size: 1
+  num_iterations: 1000
+  learning_rate: 2.0e-2
+  optimizer: adagrad
+  device: cuda
+
+reporting:
+  out_dir: results/sample_efficiency_256
