@@ -21,4 +21,8 @@ venv/
 !/results/ct_fully_connected_eval.json
 !/results/run_all.log
 !/results/run_all_steps.csv
+!/results/sample_efficiency_128/
+!/results/sample_efficiency_128/**
+!/results/sample_efficiency_256/
+!/results/sample_efficiency_256/**
 /.archive/

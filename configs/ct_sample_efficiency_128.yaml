@@ -1,0 +1,35 @@
+experiment_name: ct_sample_efficiency_gpu_128
+
+# 128x128 fan-beam, 60 views, 128 detector bins.
+# FC weight matrix has 128*128 * 60*128 = 16384 * 7680 = 125.83M params
+# (FP32 weights ~0.5 GB, Adagrad state ~0.5 GB, gradients ~0.5 GB).
+# Fits comfortably on a single GPU with >= 4 GB.
+
+geometry:
+  image_size: 128
+  num_views: 60
+  detector_bins: 128
+  angular_range_degrees: 180.0
+  source_to_iso_mm: 1000.0
+  source_to_detector_mm: 1500.0
+  detector_pixel_mm: 1.0
+
+dataset:
+  num_test_slices: 50
+  ellipses_per_slice: [3, 6]
+  noise_sigma: 0.005
+  seed: 1
+
+ablation:
+  train_sizes: [4, 16, 64, 256, 1024, 2048]
+  seeds: [1, 2, 3]
+
+training:
+  batch_size: 4
+  num_iterations: 5000
+  learning_rate: 2.0e-2
+  optimizer: adagrad
+  device: cuda
+
+reporting:
+  out_dir: results/sample_efficiency_128
