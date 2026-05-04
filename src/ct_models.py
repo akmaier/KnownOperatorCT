@@ -1,13 +1,11 @@
 """Known operator and fully connected reconstruction models.
 
-The known operator network mirrors the architecture of Wuerfl et al. (2018) and
-Maier et al. (2019): a trainable diagonal weighting layer in the projection
-domain followed by a fixed reconstruction filter and a fixed backprojection.
-The fully connected counterfactual collapses the entire reconstruction
+The known operator network follows prior work on operator-aware fan-beam
+reconstruction: a trainable diagonal weighting layer in the projection
+domain, a fixed reconstruction filter, and a fixed backprojection. The
+fully connected counterfactual collapses the entire reconstruction
 pipeline into a single learned dense matrix that maps projections directly
 to image pixels.
-
-Reference GPU implementation: https://doi.org/10.24433/CO.2164960.v1
 """
 
 from __future__ import annotations
@@ -30,7 +28,6 @@ def ramp_filter(num_bins: int) -> Tensor:
 def parker_cosine_weights(geometry: FanBeamGeometry) -> Tensor:
     """Compute Parker x cosine weights for short-scan fan-beam FBP.
 
-    Follows the reference implementation (Wuerfl et al. / PYRO-NN):
     Parker weights handle redundancy in the 180-degree scan,
     cosine weights correct for detector-bin obliquity.
     """

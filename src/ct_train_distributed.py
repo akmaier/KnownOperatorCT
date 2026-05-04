@@ -6,8 +6,9 @@ single GPU.  We use PyTorch FSDP (Fully Sharded Data Parallel) to shard
 model parameters, gradients, and optimizer state across all available GPUs,
 with CPU offloading for the optimizer state to fit within GPU memory.
 
-Designed for Helma at RRZE (4x H100 94 GB per node).  Also runs on the
-LME cluster across 4x V100 / 1080 Ti / RTX 5000 nodes.
+Designed for an HPC node with 4x H100 94 GB GPUs. Also runs on smaller
+4-GPU nodes with V100 / 1080 Ti / RTX 5000 / RTX 6000 cards (with CPU
+offload enabled for the parameter shards).
 
 Usage (via torchrun):
     torchrun --nproc_per_node=4 src/ct_train_distributed.py \
@@ -17,8 +18,8 @@ Resume support: same convention as ``ct_train.py`` — a periodic snapshot
 at ``out_dir/checkpoints/<model>.resume.pt`` lets a later job pick up where
 the previous one left off when Slurm hits its wall-time limit.  Only model
 weights are restored across resumes (not the FSDP-sharded optimizer state),
-so Adagrad's accumulator restarts from zero on each resume.  This is
-acceptable for the LME runs (single chunk fits comfortably in one job).
+so Adagrad's accumulator restarts from zero on each resume. This is
+acceptable when a single chunk fits comfortably within one job slot.
 """
 
 from __future__ import annotations

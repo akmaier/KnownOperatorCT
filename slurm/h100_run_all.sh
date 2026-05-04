@@ -1,10 +1,10 @@
 #!/bin/bash -l
 #
-# SLURM job: Full reproduction pipeline on Helma (4x H100).
+# SLURM job: Full reproduction pipeline on a 4x H100 node.
 # Runs: surrogate (CPU) -> KO train+eval (1 GPU) -> FC train (4-GPU FSDP)
 #     -> FC eval -> harvest results.
 #
-# Submit from the repo root:  sbatch slurm/helma_run_all.sh
+# Submit from the repo root:  sbatch slurm/h100_run_all.sh
 #
 #SBATCH --job-name=ct_full_pipeline
 #SBATCH --partition=h100
@@ -14,8 +14,8 @@
 #SBATCH --cpus-per-task=128
 #SBATCH --mem=700G
 #SBATCH --time=24:00:00
-#SBATCH --output=results/helma_all_%j.out
-#SBATCH --error=results/helma_all_%j.err
+#SBATCH --output=results/h100_all_%j.out
+#SBATCH --error=results/h100_all_%j.err
 #SBATCH --export=NONE
 
 unset SLURM_EXPORT_ENV

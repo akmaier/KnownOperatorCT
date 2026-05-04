@@ -1,9 +1,9 @@
 #!/bin/bash -l
 #
-# One-time environment setup on Helma.
+# One-time environment setup on an H100 cluster.
 # Run interactively:
 #   salloc --gres=gpu:h100:1 --partition=h100 --time=0:30:00
-#   bash slurm/helma_setup.sh
+#   bash slurm/h100_setup.sh
 #
 set -euo pipefail
 

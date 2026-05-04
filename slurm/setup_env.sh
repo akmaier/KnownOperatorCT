@@ -1,6 +1,6 @@
 #!/bin/bash -l
 #
-# One-time environment setup on RRZE Alex.
+# One-time environment setup on an A40 Slurm cluster.
 # Run this interactively (not via sbatch):
 #   salloc --gres=gpu:a40:1 --time=0:30:00
 #   bash slurm/setup_env.sh

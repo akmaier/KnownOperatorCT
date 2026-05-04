@@ -1,6 +1,6 @@
 #!/bin/bash -l
 #
-# SLURM job: Train and evaluate the Known Operator model on Alex (A40).
+# SLURM job: Train and evaluate the Known Operator model (A40 GPU).
 # Submit from the repo root:  sbatch slurm/run_known_operator.sh
 #
 #SBATCH --job-name=ko_ct_train

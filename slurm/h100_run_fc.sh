@@ -1,12 +1,12 @@
 #!/bin/bash -l
 #
 # SLURM job: Train the Fully Connected model at FULL resolution (512x512)
-# on Helma using 4x H100 with FSDP + CPU offload.
+# on a 4x H100 node using FSDP + CPU offload.
 #
 # FC model: 24 billion params, ~90 GB weights, ~360 GB Adam state.
 # FSDP shards across 4 GPUs; optimizer state offloaded to CPU.
 #
-# Submit from the repo root:  sbatch slurm/helma_run_fc.sh
+# Submit from the repo root:  sbatch slurm/h100_run_fc.sh
 #
 #SBATCH --job-name=fc_ct_fsdp
 #SBATCH --partition=h100
@@ -16,8 +16,8 @@
 #SBATCH --cpus-per-task=128
 #SBATCH --mem=700G
 #SBATCH --time=24:00:00
-#SBATCH --output=results/helma_fc_%j.out
-#SBATCH --error=results/helma_fc_%j.err
+#SBATCH --output=results/h100_fc_%j.out
+#SBATCH --error=results/h100_fc_%j.err
 #SBATCH --export=NONE
 
 unset SLURM_EXPORT_ENV

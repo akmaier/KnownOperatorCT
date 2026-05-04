@@ -1,15 +1,13 @@
-# Running on LME Lab Machines and the LME Slurm Cluster
+# Running on Lab GPU Machines and a Slurm Cluster
 
-There are two ways to run on LME hardware:
+There are two ways to run on the lab hardware:
 
 1. **Direct SSH to a lab machine** (`run_*.sh` here) — quick iteration, no
    queue. Use during development.
-2. **Slurm batch jobs on the LME cluster** (`slurm/*.sbatch` plus
-   `slurm/submit_chain.sh`) — the right way to run the full reproduction:
-   it queues, schedules, and (importantly) auto-resumes from checkpoints if
-   a job hits the documented 24-hour wall-time limit. See
-   [`slurm/`](slurm/) for the wrappers and
-   [`lme_cluster.md`](lme_cluster.md) for the cluster manual.
+2. **Slurm batch jobs** (`slurm/*.sbatch` plus `slurm/submit_chain.sh`) —
+   the right way to run the full reproduction: it queues, schedules, and
+   (importantly) auto-resumes from checkpoints if a job hits the 24-hour
+   wall-time limit. See [`slurm/`](slurm/) for the wrappers.
 
 ## Machine → Experiment Matrix
 
@@ -32,7 +30,7 @@ Machines with < 24 GB GPUs use FSDP to shard across multiple GPUs.
 > OOMs (observed in cluster job 760105). On 24 GB hardware, run FC via
 > FSDP instead (`run_fc_fsdp.sh` or `lme/slurm/train_fc_fsdp.sbatch`).
 
-For the full-resolution FC (512×512, 24B params), use Helma (see `slurm/` directory).
+For the full-resolution FC (512×512, 24B params), use the H100 cluster scripts in `slurm/`.
 
 ## Quick Start
 
@@ -74,11 +72,11 @@ until each model writes its `<model>.done` sentinel.
 
 ```bash
 # from your laptop
-ssh <ldap>@cluster.i5.informatik.uni-erlangen.de
+ssh <user>@<submit-node>
 
-# on the submit node (lme242):
+# on the submit node:
 mkdir -p /cluster/$(whoami) && cd /cluster/$(whoami)
-git clone git@github.com:akmaier/KnownOperatorCT.git known_operator_ct_release
+git clone <repo-url> known_operator_ct_release
 cd known_operator_ct_release
 bash lme/slurm/setup.sh        # builds .venv on /cluster, verifies torch+CUDA on a compute node
 ```
