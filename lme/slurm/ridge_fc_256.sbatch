@@ -5,9 +5,11 @@
 #SBATCH --mem=32G
 #SBATCH --gres=gpu:1
 #SBATCH --time=04:00:00
-# Need >=24 GB GPU. ATB is 6 GB and the linalg.solve workspace adds ~2 GB
-# on top, peak ~16 GB. lme221 (24 GB) and lme170 (48 GB) both fit.
-#SBATCH --exclude=lme49,lme50,lme51,lme52,lme53,lme171,lme222,lme223
+# Need 48 GB GPU. Observed peak with linalg.solve workspace was 19.4 GB
+# allocated + 5.6 GB more in the solve = 25 GB, OOMs on lme221's 24 GB.
+# Pin to lme170 (RTX 8000 48 GB).
+#SBATCH --nodelist=lme170
+#SBATCH --exclude=lme49,lme50,lme51,lme52,lme53,lme171,lme221,lme222,lme223
 #SBATCH --output=results/slurm/ridge_fc_256-%j.out
 #SBATCH --error=results/slurm/ridge_fc_256-%j.err
 #
