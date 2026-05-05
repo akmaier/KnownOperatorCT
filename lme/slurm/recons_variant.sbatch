@@ -53,17 +53,31 @@ if [ "${FC_NO_RELU:-no}" = "yes" ]; then
     no_relu_flag="--fc-no-relu"
 fi
 
-OUT="results/sample_efficiency_256/variants/recons_${VARIANT_TAG}.png"
-TAG="opt=${FC_OPTIMIZER} lr=${FC_LR} bias=${FC_BIAS} init=${FC_INIT} no_relu=${FC_NO_RELU:-no}"
+online_flag=""
+if [ "${FC_ONLINE:-no}" = "yes" ]; then
+    online_flag="--fc-online"
+fi
+
+# Sweep config + iteration count come from env so the same sbatch can drive
+# 128² 100-iter probes and 256² 1000-iter sweeps.
+CONFIG="${CONFIG_PATH:-configs/ct_sample_efficiency_256.yaml}"
+TRAIN_SIZE="${TRAIN_SIZE:-1024}"
+NUM_ITER="${NUM_ITER:-1000}"
+OUT_DIR="${OUT_DIR:-results/sample_efficiency_256/variants}"
+mkdir -p "$OUT_DIR"
+
+OUT="${OUT_DIR}/recons_${VARIANT_TAG}.png"
+TAG="opt=${FC_OPTIMIZER} lr=${FC_LR} bias=${FC_BIAS} init=${FC_INIT} no_relu=${FC_NO_RELU:-no} online=${FC_ONLINE:-no} iters=${NUM_ITER}"
 
 python src/render_reconstructions.py \
-    --config configs/ct_sample_efficiency_256.yaml \
-    --train-size 1024 --num-iterations 1000 --num-samples 2 \
+    --config "$CONFIG" \
+    --train-size "$TRAIN_SIZE" --num-iterations "$NUM_ITER" --num-samples 2 \
     --out "$OUT" \
     --fc-optimizer "$FC_OPTIMIZER" \
     --fc-lr "$FC_LR" \
     $bias_flag \
     $no_relu_flag \
+    $online_flag \
     --fc-init "$FC_INIT" \
     --fc-tag "$TAG"
 

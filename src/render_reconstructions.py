@@ -27,7 +27,7 @@ import torch
 import yaml
 from torch import nn
 
-from ct_dataset import FanBeamGeometry, iter_slice_dataset
+from ct_dataset import FanBeamGeometry, fan_beam_forward, iter_slice_dataset, random_phantom
 from ct_models import (
     FullyConnectedReconstructor,
     KnownOperatorReconstructor,
@@ -55,6 +55,10 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--fc-no-relu", action="store_true",
                         help="Strip the final ReLU from FC (turns it into pure "
                              "M*x, no non-negativity clamp).")
+    parser.add_argument("--fc-online", action="store_true",
+                        help="Generate a fresh phantom+sinogram batch every "
+                             "training iteration instead of sampling from a "
+                             "fixed pool. KO still uses the configured pool.")
     parser.add_argument("--fc-tag", default="",
                         help="Annotation appended to the figure title.")
     return parser.parse_args()
@@ -81,23 +85,47 @@ def materialize(geometry, n, seed, ellipses, device):
 
 def train(model: nn.Module, train_set, num_iter: int, batch_size: int,
           learning_rate: float, device, rng_seed: int,
-          optimizer_kind: str = "adagrad"):
+          optimizer_kind: str = "adagrad",
+          online_geometry: FanBeamGeometry = None,
+          online_ellipses: tuple = None):
+    """Train ``model`` for ``num_iter`` steps.
+
+    If ``online_geometry`` is provided, a fresh batch of phantom+sinogram
+    pairs is generated every iteration (no fixed pool, no overfitting); the
+    ``train_set`` argument is ignored in that mode. Otherwise, mini-batches
+    are drawn with replacement from ``train_set`` like before.
+    """
     if optimizer_kind == "adam":
         optimizer = torch.optim.Adam(model.parameters(), lr=learning_rate)
     else:
         optimizer = torch.optim.Adagrad(model.parameters(), lr=learning_rate)
     loss_fn = nn.MSELoss()
     rng = torch.Generator(device="cpu").manual_seed(rng_seed)
-    n = len(train_set)
-    eff_batch = min(batch_size, n)
     last = float("nan")
+    online = online_geometry is not None
+
+    if not online:
+        n = len(train_set)
+        eff_batch = min(batch_size, n)
+    else:
+        eff_batch = batch_size
+
     t0 = time.perf_counter()
     for _ in range(num_iter):
-        idx = torch.randint(0, n, (eff_batch,), generator=rng)
         loss = torch.tensor(0.0, device=device)
-        for j in idx:
-            image, sino = train_set[int(j.item())]
-            loss = loss + loss_fn(model(sino), image)
+        if online:
+            for _b in range(eff_batch):
+                image = random_phantom(
+                    online_geometry, rng,
+                    online_ellipses[0], online_ellipses[1],
+                ).to(device)
+                sino = fan_beam_forward(image, online_geometry)
+                loss = loss + loss_fn(model(sino), image)
+        else:
+            idx = torch.randint(0, n, (eff_batch,), generator=rng)
+            for j in idx:
+                image, sino = train_set[int(j.item())]
+                loss = loss + loss_fn(model(sino), image)
         loss = loss / eff_batch
         optimizer.zero_grad()
         loss.backward()
@@ -242,14 +270,18 @@ def main() -> None:
         nn.init.zeros_(fc.linear.bias)
 
     fc_lr = args.fc_lr if args.fc_lr is not None else lr
+    online_geom = geometry if args.fc_online else None
+    online_ellipses = ellipses if args.fc_online else None
     t_fc, last_fc = train(fc, train_set, args.num_iterations, batch_size, fc_lr,
                            device, rng_seed=base_seed + 1001,
-                           optimizer_kind=args.fc_optimizer)
+                           optimizer_kind=args.fc_optimizer,
+                           online_geometry=online_geom,
+                           online_ellipses=online_ellipses)
     print(
         f"[render] trained FC ({t_fc:.1f}s, last_loss={last_fc:.4e}, "
         f"opt={args.fc_optimizer}, lr={fc_lr}, "
         f"bias={args.fc_bias}, init={args.fc_init}, "
-        f"no_relu={args.fc_no_relu})",
+        f"no_relu={args.fc_no_relu}, online={args.fc_online})",
         flush=True,
     )
 
