@@ -23,6 +23,8 @@ venv/
 !/results/run_all_steps.csv
 !/results/sample_efficiency_64/
 !/results/sample_efficiency_64/**
+!/results/ridge_fc_sample_efficiency.png
+!/results/ridge_fc_sample_efficiency.csv
 !/results/sample_efficiency_128/
 !/results/sample_efficiency_128/**
 !/results/sample_efficiency_256/
