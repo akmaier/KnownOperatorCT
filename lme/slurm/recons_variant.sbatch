@@ -66,6 +66,11 @@ NUM_ITER="${NUM_ITER:-1000}"
 OUT_DIR="${OUT_DIR:-results/sample_efficiency_256/variants}"
 KO_NUM_ITER="${KO_NUM_ITER:-5000}"
 KO_TRAIN_SIZE="${KO_TRAIN_SIZE:-2048}"
+# Cache the trained KO weights once per (config, ko_train_size, ko_iters) tuple
+# so subsequent FC ablations don't retrain the same baseline. The cache key
+# is derived from the config filename so 128² and 256² use separate caches.
+CONFIG_TAG=$(basename "$CONFIG" .yaml)
+KO_CKPT="${KO_CKPT:-results/checkpoints/cache/ko_${CONFIG_TAG}_n${KO_TRAIN_SIZE}_i${KO_NUM_ITER}.pt}"
 mkdir -p "$OUT_DIR"
 
 OUT="${OUT_DIR}/recons_${VARIANT_TAG}.png"
@@ -75,6 +80,7 @@ python src/render_reconstructions.py \
     --config "$CONFIG" \
     --train-size "$TRAIN_SIZE" --num-iterations "$NUM_ITER" --num-samples 2 \
     --ko-num-iterations "$KO_NUM_ITER" --ko-train-size "$KO_TRAIN_SIZE" \
+    --ko-checkpoint "$KO_CKPT" \
     --out "$OUT" \
     --fc-optimizer "$FC_OPTIMIZER" \
     --fc-lr "$FC_LR" \

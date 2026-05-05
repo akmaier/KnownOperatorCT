@@ -49,6 +49,10 @@ def parse_args() -> argparse.Namespace:
                         help="Number of training slices for KO (uses a fixed "
                              "pool, independent of --train-size which controls "
                              "the FC pool when --fc-online is off).")
+    parser.add_argument("--ko-checkpoint", default=None,
+                        help="Path to KO weights cache. If the file exists, "
+                             "KO training is skipped and weights are loaded; "
+                             "if not, KO is trained and saved here for reuse.")
     parser.add_argument("--num-samples", type=int, default=2,
                         help="How many test slices to render in the figure.")
     parser.add_argument("--out", required=True, help="Output PNG path.")
@@ -246,14 +250,23 @@ def main() -> None:
     lr = float(cfg["training"]["learning_rate"])
 
     ko = KnownOperatorReconstructor(geometry).to(device)
-    t_ko, last_ko = train(ko, ko_train_set, args.ko_num_iterations, batch_size, lr,
-                           device, rng_seed=base_seed + 1000,
-                           optimizer_kind="adagrad")
-    print(
-        f"[render] trained KO ({t_ko:.1f}s, last_loss={last_ko:.4e}, "
-        f"iters={args.ko_num_iterations}, n_train={args.ko_train_size})",
-        flush=True,
-    )
+    ko_ckpt = Path(args.ko_checkpoint) if args.ko_checkpoint else None
+    if ko_ckpt and ko_ckpt.exists():
+        ko.load_state_dict(torch.load(ko_ckpt, map_location=device))
+        print(f"[render] loaded KO from {ko_ckpt}", flush=True)
+    else:
+        t_ko, last_ko = train(ko, ko_train_set, args.ko_num_iterations, batch_size, lr,
+                               device, rng_seed=base_seed + 1000,
+                               optimizer_kind="adagrad")
+        print(
+            f"[render] trained KO ({t_ko:.1f}s, last_loss={last_ko:.4e}, "
+            f"iters={args.ko_num_iterations}, n_train={args.ko_train_size})",
+            flush=True,
+        )
+        if ko_ckpt:
+            ko_ckpt.parent.mkdir(parents=True, exist_ok=True)
+            torch.save(ko.state_dict(), ko_ckpt)
+            print(f"[render] cached KO weights to {ko_ckpt}", flush=True)
 
     # Compute KO recons up front and drop the model + its allocator cache
     # before bringing FC up. The 256x256 FC needs ~17 GB peak with Adagrad
