@@ -5,8 +5,12 @@
 #SBATCH --mem=48G
 #SBATCH --gres=gpu:1
 #SBATCH --time=01:00:00
-# Need >=24 GB GPU. Adam variant wants ~22 GB peak; restrict to 24+ GB nodes.
-#SBATCH --exclude=lme49,lme50,lme51,lme52,lme53,lme171,lme222,lme223
+# Need a 48 GB GPU. The Adagrad path's _multi_tensor implementation
+# allocates multiple full-size weight-buffer intermediates during the step
+# (~22 GB peak), so the 24 GB lme221 nodes OOM even after freeing KO.
+# Pin to lme170 (RTX 8000 48 GB).
+#SBATCH --nodelist=lme170
+#SBATCH --exclude=lme49,lme50,lme51,lme52,lme53,lme171,lme221,lme222,lme223
 #SBATCH --output=results/slurm/recons-%x-%j.out
 #SBATCH --error=results/slurm/recons-%x-%j.err
 #
