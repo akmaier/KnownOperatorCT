@@ -232,9 +232,24 @@ def main() -> None:
     # ------- Loss curve -------
     loss_path = out_path.parent / (out_path.stem + "_loss.png")
     fig, ax = plt.subplots(figsize=(8, 4.5))
-    its = [r["iter"] for r in loss_log]
-    ls = [r["loss"] for r in loss_log]
-    ax.plot(its, ls, color="#b54b32", linewidth=1.2, label="FC training loss")
+    its = np.array([r["iter"] for r in loss_log], dtype=np.float64)
+    ls = np.array([r["loss"] for r in loss_log], dtype=np.float64)
+    # Raw per-batch loss is heavily fluctuating (single batch of 4 fresh
+    # phantoms each step), so we overlay a geometric moving average that
+    # exposes the smoothed trend.
+    ax.plot(its, ls, color="#b54b32", linewidth=0.6, alpha=0.35,
+            label="FC training loss (raw)")
+    if len(ls) >= 5:
+        # 5%-of-points window or 21, whichever is bigger; force an odd window.
+        win = max(21, (len(ls) // 20) | 1)
+        win = min(win, len(ls) - (1 - len(ls) % 2))
+        kernel = np.ones(win) / win
+        smoothed = np.convolve(ls, kernel, mode="same")
+        # Fix edge bias: at the ends, the convolution averages over less data.
+        norm = np.convolve(np.ones_like(ls), kernel, mode="same")
+        smoothed /= norm
+        ax.plot(its, smoothed, color="#b54b32", linewidth=1.8,
+                label=f"FC training loss (moving avg, w={win})")
     # Reference horizontal: E[phantom²], the predict-zero floor.
     sq = np.concatenate([
         (test_set[i][0].detach().cpu().numpy() ** 2).ravel()
