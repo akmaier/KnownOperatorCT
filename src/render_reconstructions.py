@@ -39,7 +39,16 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--config", required=True)
     parser.add_argument("--train-size", type=int, required=True,
                         help="Number of training slices (sampled from the configured pool).")
-    parser.add_argument("--num-iterations", type=int, required=True)
+    parser.add_argument("--num-iterations", type=int, required=True,
+                        help="Iteration budget for the FC training. KO uses "
+                             "--ko-num-iterations instead (default 5000) so "
+                             "it doesn't get over-trained on a degenerate pool.")
+    parser.add_argument("--ko-num-iterations", type=int, default=5000,
+                        help="Iteration budget for KO training.")
+    parser.add_argument("--ko-train-size", type=int, default=2048,
+                        help="Number of training slices for KO (uses a fixed "
+                             "pool, independent of --train-size which controls "
+                             "the FC pool when --fc-online is off).")
     parser.add_argument("--num-samples", type=int, default=2,
                         help="How many test slices to render in the figure.")
     parser.add_argument("--out", required=True, help="Output PNG path.")
@@ -215,19 +224,36 @@ def main() -> None:
     test_set = materialize(geometry, args.num_samples,
                             seed=base_seed + 10_000,
                             ellipses=ellipses, device=device)
-    train_set = materialize(geometry, args.train_size,
-                             seed=base_seed + 1,
-                             ellipses=ellipses, device=device)
-    print(f"[render] train_size={len(train_set)}, num_test={len(test_set)}", flush=True)
+    # KO always trains on its own fixed pool — it doesn't suffer from the
+    # dead-ReLU plateau, so reusing samples across epochs is fine and lets
+    # the figure show a converged KO baseline regardless of FC's iter budget.
+    ko_train_set = materialize(geometry, args.ko_train_size,
+                                seed=base_seed + 1,
+                                ellipses=ellipses, device=device)
+    fc_train_set = (
+        ko_train_set if args.fc_online or args.train_size == args.ko_train_size
+        else materialize(geometry, args.train_size,
+                         seed=base_seed + 1,
+                         ellipses=ellipses, device=device)
+    )
+    print(
+        f"[render] ko_train_size={len(ko_train_set)} fc_train_size={len(fc_train_set)}"
+        f" num_test={len(test_set)}",
+        flush=True,
+    )
 
     batch_size = int(cfg["training"]["batch_size"])
     lr = float(cfg["training"]["learning_rate"])
 
     ko = KnownOperatorReconstructor(geometry).to(device)
-    t_ko, last_ko = train(ko, train_set, args.num_iterations, batch_size, lr,
+    t_ko, last_ko = train(ko, ko_train_set, args.ko_num_iterations, batch_size, lr,
                            device, rng_seed=base_seed + 1000,
                            optimizer_kind="adagrad")
-    print(f"[render] trained KO ({t_ko:.1f}s, last_loss={last_ko:.4e})", flush=True)
+    print(
+        f"[render] trained KO ({t_ko:.1f}s, last_loss={last_ko:.4e}, "
+        f"iters={args.ko_num_iterations}, n_train={args.ko_train_size})",
+        flush=True,
+    )
 
     # Compute KO recons up front and drop the model + its allocator cache
     # before bringing FC up. The 256x256 FC needs ~17 GB peak with Adagrad
@@ -272,7 +298,7 @@ def main() -> None:
     fc_lr = args.fc_lr if args.fc_lr is not None else lr
     online_geom = geometry if args.fc_online else None
     online_ellipses = ellipses if args.fc_online else None
-    t_fc, last_fc = train(fc, train_set, args.num_iterations, batch_size, fc_lr,
+    t_fc, last_fc = train(fc, fc_train_set, args.num_iterations, batch_size, fc_lr,
                            device, rng_seed=base_seed + 1001,
                            optimizer_kind=args.fc_optimizer,
                            online_geometry=online_geom,

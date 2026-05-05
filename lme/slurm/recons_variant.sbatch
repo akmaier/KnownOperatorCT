@@ -4,7 +4,7 @@
 #SBATCH --cpus-per-task=4
 #SBATCH --mem=48G
 #SBATCH --gres=gpu:1
-#SBATCH --time=01:00:00
+#SBATCH --time=04:00:00
 # Need a 48 GB GPU. The Adagrad path's _multi_tensor implementation
 # allocates multiple full-size weight-buffer intermediates during the step
 # (~22 GB peak), so the 24 GB lme221 nodes OOM even after freeing KO.
@@ -64,6 +64,8 @@ CONFIG="${CONFIG_PATH:-configs/ct_sample_efficiency_256.yaml}"
 TRAIN_SIZE="${TRAIN_SIZE:-1024}"
 NUM_ITER="${NUM_ITER:-1000}"
 OUT_DIR="${OUT_DIR:-results/sample_efficiency_256/variants}"
+KO_NUM_ITER="${KO_NUM_ITER:-5000}"
+KO_TRAIN_SIZE="${KO_TRAIN_SIZE:-2048}"
 mkdir -p "$OUT_DIR"
 
 OUT="${OUT_DIR}/recons_${VARIANT_TAG}.png"
@@ -72,6 +74,7 @@ TAG="opt=${FC_OPTIMIZER} lr=${FC_LR} bias=${FC_BIAS} init=${FC_INIT} no_relu=${F
 python src/render_reconstructions.py \
     --config "$CONFIG" \
     --train-size "$TRAIN_SIZE" --num-iterations "$NUM_ITER" --num-samples 2 \
+    --ko-num-iterations "$KO_NUM_ITER" --ko-train-size "$KO_TRAIN_SIZE" \
     --out "$OUT" \
     --fc-optimizer "$FC_OPTIMIZER" \
     --fc-lr "$FC_LR" \
