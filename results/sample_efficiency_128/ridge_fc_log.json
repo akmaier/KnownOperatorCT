@@ -1,0 +1,29 @@
+{
+  "geometry": {
+    "image_size": 128,
+    "num_views": 60,
+    "detector_bins": 128,
+    "angular_range_degrees": 180.0,
+    "source_to_iso_mm": 1000.0,
+    "source_to_detector_mm": 1500.0,
+    "detector_pixel_mm": 1.0
+  },
+  "train_sizes": [
+    4,
+    16,
+    64,
+    256,
+    1024,
+    2048
+  ],
+  "lambda": 1.0,
+  "use_relu": false,
+  "fit_times_s": {
+    "4": 0.6342015452682972,
+    "16": 0.6055689677596092,
+    "64": 1.68706264346838,
+    "256": 6.068992357701063,
+    "1024": 23.356657404452562,
+    "2048": 46.57821203768253
+  }
+}
