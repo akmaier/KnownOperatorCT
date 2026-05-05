@@ -198,6 +198,19 @@ def main() -> None:
                            optimizer_kind="adagrad")
     print(f"[render] trained KO ({t_ko:.1f}s, last_loss={last_ko:.4e})", flush=True)
 
+    # Compute KO recons up front and drop the model + its allocator cache
+    # before bringing FC up. The 256x256 FC needs ~17 GB peak with Adagrad
+    # (weights + state + gradient buffer); on a 24 GB GPU the residual
+    # caching allocator from KO is enough to OOM the FC's first .step().
+    ko.eval()
+    ko_recons: list = []
+    with torch.no_grad():
+        for _, sino in test_set:
+            ko_recons.append(ko(sino).detach().cpu().numpy())
+    del ko
+    if device.type == "cuda":
+        torch.cuda.empty_cache()
+
     # FC: optionally swap in a Linear with bias and re-init.
     fc = FullyConnectedReconstructor.from_geometry(geometry).to(device)
     if args.fc_bias:
@@ -224,12 +237,10 @@ def main() -> None:
         flush=True,
     )
 
-    ko.eval(); fc.eval()
-    ko_recons = []
+    fc.eval()
     fc_recons = []
     with torch.no_grad():
         for _, sino in test_set:
-            ko_recons.append(ko(sino).detach().cpu().numpy())
             fc_recons.append(fc(sino).detach().cpu().numpy())
 
     render(test_set, ko_recons, fc_recons, out_path,
