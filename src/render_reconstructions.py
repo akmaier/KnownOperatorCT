@@ -92,8 +92,19 @@ def train(model: nn.Module, train_set, num_iter: int, batch_size: int,
 
 def render(test_set, ko_recons, fc_recons, out_path: Path,
            image_size: int, num_views: int) -> None:
+    """6-column figure:
+        phantom | KO recon | KO error | FC recon (shared scale) | FC recon (auto) | FC error
+
+    The first FC column shares vmax with the phantom so the magnitude
+    collapse (FC output ≪ phantom intensity) is visible. The second FC
+    column uses FC's own 99-th percentile as vmax, so whatever faint
+    structure FC actually produced becomes legible. Errors are clipped to
+    the joint 99-th percentile to keep a few outlier pixels from blowing
+    up the colormap.
+    """
+    import numpy as np
     n = len(test_set)
-    fig, axes = plt.subplots(n, 5, figsize=(13, 2.7 * n))
+    fig, axes = plt.subplots(n, 6, figsize=(15.5, 2.7 * n))
     if n == 1:
         axes = axes.reshape(1, -1)
     for i in range(n):
@@ -104,18 +115,31 @@ def render(test_set, ko_recons, fc_recons, out_path: Path,
         fc_err = fc - phantom
 
         vmax = float(max(phantom.max(), ko.max(), fc.max()))
-        emax = float(max(abs(ko_err).max(), abs(fc_err).max(), 1e-9))
+        # Clip the error colormap at the joint 99.5th percentile so a few
+        # outlier pixels in FC don't squash the visible range to white.
+        joint_abs = np.concatenate([np.abs(ko_err).ravel(), np.abs(fc_err).ravel()])
+        emax = float(max(np.percentile(joint_abs, 99.5), 1e-9))
+        # FC own dynamic range, also percentile-clipped for the auto panel.
+        fc_clip_max = float(max(np.percentile(fc, 99.5), 1e-9))
+
+        ko_rrmse = float(((ko - phantom) ** 2).mean() ** 0.5
+                         / (abs(phantom).max() + 1e-9))
+        fc_rrmse = float(((fc - phantom) ** 2).mean() ** 0.5
+                         / (abs(phantom).max() + 1e-9))
 
         ims = [
             (phantom, "phantom", "gray", 0.0, vmax),
-            (ko,      f"KO recon (rRMSE={(((ko-phantom)**2).mean()**0.5/(abs(phantom).max()+1e-9)):.3f})", "gray", 0.0, vmax),
+            (ko,      f"KO recon (rRMSE={ko_rrmse:.3f})", "gray", 0.0, vmax),
             (ko_err,  "KO error",  "RdBu_r", -emax, emax),
-            (fc,      f"FC recon (rRMSE={(((fc-phantom)**2).mean()**0.5/(abs(phantom).max()+1e-9)):.3f})", "gray", 0.0, vmax),
+            (fc,      f"FC recon (rRMSE={fc_rrmse:.3f}, max={float(fc.max()):.3f})",
+                      "gray", 0.0, vmax),
+            (fc,      f"FC recon auto (vmax={fc_clip_max:.3f})",
+                      "gray", 0.0, fc_clip_max),
             (fc_err,  "FC error",  "RdBu_r", -emax, emax),
         ]
         for ax, (img, title, cmap, vmin, vmaxi) in zip(axes[i], ims):
             im = ax.imshow(img, cmap=cmap, vmin=vmin, vmax=vmaxi)
-            ax.set_title(title, fontsize=10)
+            ax.set_title(title, fontsize=9)
             ax.set_xticks([]); ax.set_yticks([])
         # colourbar on the right of each row's last error panel for scale
         plt.colorbar(im, ax=axes[i, -1], fraction=0.046, pad=0.04)
