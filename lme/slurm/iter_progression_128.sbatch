@@ -23,14 +23,15 @@ export PYTORCH_CUDA_ALLOC_CONF="expandable_segments:True"
 
 CHECKPOINTS="${CHECKPOINTS:-100,1000,10000,50000}"
 KO_CKPT="${KO_CKPT:-results/checkpoints/cache/ko_ct_sample_efficiency_128_n2048_i5000.pt}"
+OUT_FILE="${OUT_FILE:-results/sample_efficiency_128/iter_progression.png}"
 
-echo "[$(date '+%F %T')] node=$(hostname) job=$SLURM_JOB_ID checkpoints=$CHECKPOINTS"
+echo "[$(date '+%F %T')] node=$(hostname) job=$SLURM_JOB_ID checkpoints=$CHECKPOINTS out=$OUT_FILE"
 nvidia-smi --query-gpu=name,memory.total --format=csv,noheader || true
 
 python src/render_iter_progression.py \
     --config configs/ct_sample_efficiency_128.yaml \
     --checkpoints "$CHECKPOINTS" \
     --ko-checkpoint "$KO_CKPT" \
-    --out results/sample_efficiency_128/iter_progression.png
+    --out "$OUT_FILE"
 
 echo "[$(date '+%F %T')] done"
