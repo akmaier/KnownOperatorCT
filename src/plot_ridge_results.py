@@ -50,12 +50,21 @@ def main() -> None:
             print(f"[plot] missing {path} — skipping {label}")
             continue
         d = json.loads(p.read_text())
-        if "fc_rrmse_per_n" not in d:
-            print(f"[plot] {path} predates per-N stats — skipping {label}")
+        # New schema (post-seed-averaging) uses fc_per_n with rrmse_mean_across_seeds.
+        # Old schema used fc_rrmse_per_n with mean/std over test slices.
+        if "fc_per_n" in d:
+            ns = sorted(int(n) for n in d["fc_per_n"].keys())
+            means = [d["fc_per_n"][str(n)]["rrmse_mean_across_seeds"] for n in ns]
+            stds = [d["fc_per_n"][str(n)]["rrmse_std_across_seeds"] for n in ns]
+            lam_desc = f"λ ∈ {d.get('lambdas', '?')}, seeds {d.get('seeds', '?')}"
+        elif "fc_rrmse_per_n" in d:
+            ns = sorted(int(n) for n in d["fc_rrmse_per_n"].keys())
+            means = [d["fc_rrmse_per_n"][str(n)]["mean"] for n in ns]
+            stds = [d["fc_rrmse_per_n"][str(n)]["std"] for n in ns]
+            lam_desc = f"λ={d.get('lambda', '?')} (single seed)"
+        else:
+            print(f"[plot] {path} has no per-N stats — skipping {label}")
             continue
-        ns = sorted(int(n) for n in d["fc_rrmse_per_n"].keys())
-        means = [d["fc_rrmse_per_n"][str(n)]["mean"] for n in ns]
-        stds = [d["fc_rrmse_per_n"][str(n)]["std"] for n in ns]
         ko_mean = d["ko_rrmse"]["mean"]
         ko_std = d["ko_rrmse"]["std"]
         p_fc = d["geometry"]["image_size"] ** 2 * d["geometry"]["num_views"] * d["geometry"]["detector_bins"]
@@ -65,7 +74,7 @@ def main() -> None:
             "ns": ns, "means": means, "stds": stds,
             "ko_mean": ko_mean, "ko_std": ko_std,
             "p_fc": p_fc, "p_ko": p_ko,
-            "lam": d["lambda"],
+            "lam": lam_desc,
             "num_test": d.get("num_test_stats", "?"),
         })
     if not series:
@@ -111,7 +120,8 @@ def main() -> None:
     axes[1].legend(frameon=False, fontsize=8, loc="upper right")
 
     fig.suptitle(
-        "Ridge regression FC at increasing scales — closed-form, λ=1.0",
+        "Ridge regression FC at increasing scales — closed-form, "
+        "λ chosen from a grid per (N, seed); error bars across seeds",
         fontsize=12,
     )
     fig.tight_layout(rect=(0, 0, 1, 0.96))

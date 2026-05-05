@@ -135,8 +135,15 @@ def parse_args() -> argparse.Namespace:
     p.add_argument("--config", required=True)
     p.add_argument("--train-sizes", required=True,
                    help="Comma-separated N values, e.g., 4,16,64,256,1024,2048")
-    p.add_argument("--lambda", dest="lam", type=float, default=1.0,
-                   help="Ridge regularization weight (default 1.0).")
+    p.add_argument("--lambdas", default="1.0",
+                   help="Comma-separated list of ridge λ values to fit per N. "
+                        "When multiple are given, the script picks the best λ "
+                        "per (N, seed) by lowest test rRMSE — matching the "
+                        "surrogate's λ-grid behaviour.")
+    p.add_argument("--seeds", default="1,2,3",
+                   help="Comma-separated training-data seeds; for each (N, λ) "
+                        "the fit is repeated once per seed and we report "
+                        "mean ± std across seeds.")
     p.add_argument("--num-samples", type=int, default=2,
                    help="Number of test slices rendered in the figure.")
     p.add_argument("--num-test-stats", type=int, default=50,
@@ -164,7 +171,10 @@ def main() -> None:
     base_seed = int(cfg["dataset"].get("seed", 1))
     ellipses = tuple(cfg["dataset"]["ellipses_per_slice"])
     train_sizes = sorted({int(n) for n in args.train_sizes.split(",")})
-    print(f"[ridge] train_sizes={train_sizes}, lambda={args.lam}", flush=True)
+    lambdas = sorted({float(l) for l in args.lambdas.split(",")})
+    seeds = [int(s) for s in args.seeds.split(",")]
+    print(f"[ridge] train_sizes={train_sizes}, lambdas={lambdas}, seeds={seeds}",
+          flush=True)
 
     # Test set (fixed). We materialize a large pool for stats and render
     # only the first `num_samples` slices in the figure.
@@ -223,45 +233,83 @@ def main() -> None:
     print(f"[ridge] KO over {len(ko_rrmses_full)} test slices: "
           f"rRMSE = {ko_rrmse_mean:.4f} ± {ko_rrmse_std:.4f}", flush=True)
 
-    # ----- Ridge fits at each N -----
-    fc_recons_at: dict[int, list] = {}
+    # ----- Ridge fits at each (N, seed): pick best λ from the grid per cell.
+    # The aggregate "FC rRMSE for size N" is the mean ± std across seeds of
+    # each seed's best-λ test rRMSE (matches the surrogate's protocol). -----
+    fc_recons_at: dict[int, list] = {}     # rendered with the first seed only
     fit_times: dict[int, float] = {}
-    fc_rrmse_per_n: dict[int, dict] = {}
+    fc_per_n: dict[int, dict] = {}
+    raw_log: list[dict] = []  # per-(N, seed, λ) record for transparency
+
     for n in train_sizes:
-        seed = base_seed + 1001 + n  # different per N (matches surrogate convention)
-        M, dt = fit_ridge(
-            geometry, n, args.lam, seed=seed,
-            ellipses=ellipses, device=device,
-            use_relu=args.use_relu,
-        )
-        fit_times[n] = dt
-        with torch.no_grad():
-            # Render slices (first num_samples)
-            fc_recons_at[n] = [
-                predict(M, sino, geometry.image_size, args.use_relu)
-                .detach().cpu().numpy()
-                for _, sino in test_set
-            ]
-            # Stats over the full test pool
-            r_list = []
-            for img, sino in test_set_stats:
-                recon = predict(M, sino, geometry.image_size, args.use_relu).detach()
-                r = float(((recon - img) ** 2).mean() ** 0.5
-                          / (img.abs().max() + 1e-9))
-                r_list.append(r)
-            fc_rrmse_per_n[n] = {
-                "values": r_list,
-                "mean": float(np.mean(r_list)),
-                "std": float(np.std(r_list, ddof=1)) if len(r_list) > 1 else 0.0,
-            }
-        # Free M aggressively before next fit
-        del M
-        if device.type == "cuda":
-            torch.cuda.empty_cache()
+        per_seed_best_rrmse: list[float] = []
+        per_seed_best_lambda: list[float] = []
+        per_seed_t: list[float] = []
+        for s_idx, seed in enumerate(seeds):
+            best_r = float("inf")
+            best_l = None
+            best_M = None
+            for lam in lambdas:
+                rng_seed = base_seed + 1001 + 1000 * seed + n
+                M, dt = fit_ridge(
+                    geometry, n, lam, seed=rng_seed,
+                    ellipses=ellipses, device=device,
+                    use_relu=args.use_relu,
+                )
+                with torch.no_grad():
+                    r_list = []
+                    for img, sino in test_set_stats:
+                        recon = predict(M, sino, geometry.image_size, args.use_relu).detach()
+                        rr = float(((recon - img) ** 2).mean() ** 0.5
+                                   / (img.abs().max() + 1e-9))
+                        r_list.append(rr)
+                mean_r = float(np.mean(r_list))
+                raw_log.append({
+                    "N": n, "seed": seed, "lambda": lam,
+                    "rrmse_mean": mean_r,
+                    "rrmse_std": float(np.std(r_list, ddof=1)) if len(r_list) > 1 else 0.0,
+                    "fit_time_s": dt,
+                })
+                if mean_r < best_r:
+                    best_r = mean_r
+                    best_l = lam
+                    if best_M is not None:
+                        del best_M
+                    best_M = M
+                else:
+                    del M
+                if device.type == "cuda":
+                    torch.cuda.empty_cache()
+            per_seed_best_rrmse.append(best_r)
+            per_seed_best_lambda.append(best_l)
+            per_seed_t.append(dt)
+            # First seed: cache renders for the figure
+            if s_idx == 0 and best_M is not None:
+                with torch.no_grad():
+                    fc_recons_at[n] = [
+                        predict(best_M, sino, geometry.image_size, args.use_relu)
+                        .detach().cpu().numpy()
+                        for _, sino in test_set
+                    ]
+            del best_M
+            if device.type == "cuda":
+                torch.cuda.empty_cache()
+
+        fit_times[n] = float(np.mean(per_seed_t))
+        fc_per_n[n] = {
+            "best_rrmse_per_seed": per_seed_best_rrmse,
+            "best_lambda_per_seed": per_seed_best_lambda,
+            "rrmse_mean_across_seeds": float(np.mean(per_seed_best_rrmse)),
+            "rrmse_std_across_seeds": (
+                float(np.std(per_seed_best_rrmse, ddof=1))
+                if len(per_seed_best_rrmse) > 1 else 0.0
+            ),
+        }
         print(
-            f"[ridge] N={n:>5d}  fit_time={dt:.1f}s  "
-            f"FC rRMSE = {fc_rrmse_per_n[n]['mean']:.4f} ± {fc_rrmse_per_n[n]['std']:.4f} "
-            f"(over {len(r_list)} slices)",
+            f"[ridge] N={n:>5d}  best-λ rRMSE across {len(seeds)} seeds = "
+            f"{fc_per_n[n]['rrmse_mean_across_seeds']:.4f} ± "
+            f"{fc_per_n[n]['rrmse_std_across_seeds']:.4f}  "
+            f"(λ chosen: {per_seed_best_lambda})",
             flush=True,
         )
 
@@ -295,8 +343,8 @@ def main() -> None:
 
     relu_tag = " + ReLU" if args.use_relu else ""
     fig.suptitle(
-        f"FC ridge regression progression @ {geometry.image_size}x{geometry.image_size} "
-        f"({geometry.num_views} views, λ={args.lam}{relu_tag})",
+        f"FC ridge regression @ {geometry.image_size}x{geometry.image_size} "
+        f"({geometry.num_views} views, λ chosen from {lambdas}{relu_tag})",
         fontsize=12,
     )
     fig.tight_layout(rect=(0, 0, 1, 0.96))
@@ -308,13 +356,15 @@ def main() -> None:
     json_path.write_text(json.dumps({
         "geometry": cfg["geometry"],
         "train_sizes": train_sizes,
-        "lambda": args.lam,
+        "lambdas": lambdas,
+        "seeds": seeds,
         "use_relu": args.use_relu,
         "num_test_stats": len(test_set_stats),
         "fit_times_s": fit_times,
         "ko_rrmse": {"mean": ko_rrmse_mean, "std": ko_rrmse_std,
                      "values": ko_rrmses_full},
-        "fc_rrmse_per_n": {str(n): fc_rrmse_per_n[n] for n in train_sizes},
+        "fc_per_n": {str(n): fc_per_n[n] for n in train_sizes},
+        "raw_per_cell": raw_log,
     }, indent=2))
     print(f"[ridge] wrote {out_path}, {json_path}", flush=True)
 

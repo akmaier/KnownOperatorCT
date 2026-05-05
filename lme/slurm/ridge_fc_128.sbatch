@@ -29,8 +29,10 @@ nvidia-smi --query-gpu=name,memory.total --format=csv,noheader || true
 python src/ridge_fc.py \
     --config configs/ct_sample_efficiency_128.yaml \
     --train-sizes 4,16,64,256,1024,2048 \
-    --lambda 1.0 \
+    --lambdas 1e-4,1e-2,1.0,1e2,1e4 \
+    --seeds 1,2,3 \
     --num-samples 2 \
+    --num-test-stats 50 \
     --ko-checkpoint "$KO_CKPT" \
     --out results/sample_efficiency_128/ridge_fc.png
 
