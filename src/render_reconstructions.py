@@ -52,6 +52,9 @@ def parse_args() -> argparse.Namespace:
                         help="Replace FC's bias-free Linear with a Linear that has bias.")
     parser.add_argument("--fc-init", choices=["kaiming", "xavier"], default="kaiming",
                         help="Re-initialize FC's weight matrix with this scheme.")
+    parser.add_argument("--fc-no-relu", action="store_true",
+                        help="Strip the final ReLU from FC (turns it into pure "
+                             "M*x, no non-negativity clamp).")
     parser.add_argument("--fc-tag", default="",
                         help="Annotation appended to the figure title.")
     return parser.parse_args()
@@ -213,6 +216,18 @@ def main() -> None:
 
     # FC: optionally swap in a Linear with bias and re-init.
     fc = FullyConnectedReconstructor.from_geometry(geometry).to(device)
+    if args.fc_no_relu:
+        # Replace the forward to skip the final ReLU. The model becomes
+        # pure linear regression y = M*x (or M*x + b), and the MSE objective
+        # has a non-trivial minimum-norm least-squares solution even when
+        # the system is wildly underdetermined.
+        def _forward_no_relu(self, sinogram):
+            flat = sinogram.flatten(start_dim=-2)
+            out = self.linear(flat)
+            side = int(out.shape[-1] ** 0.5)
+            return out.view(*out.shape[:-1], side, side)
+        import types
+        fc.forward = types.MethodType(_forward_no_relu, fc)
     if args.fc_bias:
         n_in = fc.linear.in_features
         n_out = fc.linear.out_features
@@ -233,7 +248,8 @@ def main() -> None:
     print(
         f"[render] trained FC ({t_fc:.1f}s, last_loss={last_fc:.4e}, "
         f"opt={args.fc_optimizer}, lr={fc_lr}, "
-        f"bias={args.fc_bias}, init={args.fc_init})",
+        f"bias={args.fc_bias}, init={args.fc_init}, "
+        f"no_relu={args.fc_no_relu})",
         flush=True,
     )
 

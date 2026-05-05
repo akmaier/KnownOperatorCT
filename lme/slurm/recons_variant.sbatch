@@ -48,8 +48,13 @@ if [ "$FC_BIAS" = "yes" ]; then
     bias_flag="--fc-bias"
 fi
 
+no_relu_flag=""
+if [ "${FC_NO_RELU:-no}" = "yes" ]; then
+    no_relu_flag="--fc-no-relu"
+fi
+
 OUT="results/sample_efficiency_256/variants/recons_${VARIANT_TAG}.png"
-TAG="opt=${FC_OPTIMIZER} lr=${FC_LR} bias=${FC_BIAS} init=${FC_INIT}"
+TAG="opt=${FC_OPTIMIZER} lr=${FC_LR} bias=${FC_BIAS} init=${FC_INIT} no_relu=${FC_NO_RELU:-no}"
 
 python src/render_reconstructions.py \
     --config configs/ct_sample_efficiency_256.yaml \
@@ -58,6 +63,7 @@ python src/render_reconstructions.py \
     --fc-optimizer "$FC_OPTIMIZER" \
     --fc-lr "$FC_LR" \
     $bias_flag \
+    $no_relu_flag \
     --fc-init "$FC_INIT" \
     --fc-tag "$TAG"
 
