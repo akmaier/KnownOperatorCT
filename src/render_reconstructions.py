@@ -43,6 +43,17 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--num-samples", type=int, default=2,
                         help="How many test slices to render in the figure.")
     parser.add_argument("--out", required=True, help="Output PNG path.")
+    # FC ablation knobs — try alternative recipes to escape the dead-ReLU
+    # plateau the default config falls into. Defaults match the config.
+    parser.add_argument("--fc-optimizer", choices=["adagrad", "adam"], default="adagrad")
+    parser.add_argument("--fc-lr", type=float, default=None,
+                        help="Override learning rate for the FC model only.")
+    parser.add_argument("--fc-bias", action="store_true",
+                        help="Replace FC's bias-free Linear with a Linear that has bias.")
+    parser.add_argument("--fc-init", choices=["kaiming", "xavier"], default="kaiming",
+                        help="Re-initialize FC's weight matrix with this scheme.")
+    parser.add_argument("--fc-tag", default="",
+                        help="Annotation appended to the figure title.")
     return parser.parse_args()
 
 
@@ -66,8 +77,12 @@ def materialize(geometry, n, seed, ellipses, device):
 
 
 def train(model: nn.Module, train_set, num_iter: int, batch_size: int,
-          learning_rate: float, device, rng_seed: int) -> float:
-    optimizer = torch.optim.Adagrad(model.parameters(), lr=learning_rate)
+          learning_rate: float, device, rng_seed: int,
+          optimizer_kind: str = "adagrad"):
+    if optimizer_kind == "adam":
+        optimizer = torch.optim.Adam(model.parameters(), lr=learning_rate)
+    else:
+        optimizer = torch.optim.Adagrad(model.parameters(), lr=learning_rate)
     loss_fn = nn.MSELoss()
     rng = torch.Generator(device="cpu").manual_seed(rng_seed)
     n = len(train_set)
@@ -91,7 +106,7 @@ def train(model: nn.Module, train_set, num_iter: int, batch_size: int,
 
 
 def render(test_set, ko_recons, fc_recons, out_path: Path,
-           image_size: int, num_views: int) -> None:
+           image_size: int, num_views: int, subtitle: str = "") -> None:
     """6-column figure:
         phantom | KO recon | KO error | FC recon (shared scale) | FC recon (auto) | FC error
 
@@ -144,11 +159,10 @@ def render(test_set, ko_recons, fc_recons, out_path: Path,
         # colourbar on the right of each row's last error panel for scale
         plt.colorbar(im, ax=axes[i, -1], fraction=0.046, pad=0.04)
 
-    fig.suptitle(
-        f"Sample reconstructions @ {image_size}x{image_size}, "
-        f"{num_views} views",
-        fontsize=12,
-    )
+    title = f"Sample reconstructions @ {image_size}x{image_size}, {num_views} views"
+    if subtitle:
+        title = f"{title} — {subtitle}"
+    fig.suptitle(title, fontsize=12)
     fig.tight_layout(rect=(0, 0, 1, 0.97))
     fig.savefig(out_path, dpi=150)
     plt.close(fig)
@@ -180,13 +194,35 @@ def main() -> None:
 
     ko = KnownOperatorReconstructor(geometry).to(device)
     t_ko, last_ko = train(ko, train_set, args.num_iterations, batch_size, lr,
-                           device, rng_seed=base_seed + 1000)
+                           device, rng_seed=base_seed + 1000,
+                           optimizer_kind="adagrad")
     print(f"[render] trained KO ({t_ko:.1f}s, last_loss={last_ko:.4e})", flush=True)
 
+    # FC: optionally swap in a Linear with bias and re-init.
     fc = FullyConnectedReconstructor.from_geometry(geometry).to(device)
-    t_fc, last_fc = train(fc, train_set, args.num_iterations, batch_size, lr,
-                           device, rng_seed=base_seed + 1001)
-    print(f"[render] trained FC ({t_fc:.1f}s, last_loss={last_fc:.4e})", flush=True)
+    if args.fc_bias:
+        n_in = fc.linear.in_features
+        n_out = fc.linear.out_features
+        fc.linear = nn.Linear(n_in, n_out, bias=True).to(device)
+    if args.fc_init == "xavier":
+        nn.init.xavier_uniform_(fc.linear.weight)
+    else:
+        # kaiming-uniform with a=sqrt(5) matches the default in nn.Linear
+        import math
+        nn.init.kaiming_uniform_(fc.linear.weight, a=math.sqrt(5))
+    if fc.linear.bias is not None:
+        nn.init.zeros_(fc.linear.bias)
+
+    fc_lr = args.fc_lr if args.fc_lr is not None else lr
+    t_fc, last_fc = train(fc, train_set, args.num_iterations, batch_size, fc_lr,
+                           device, rng_seed=base_seed + 1001,
+                           optimizer_kind=args.fc_optimizer)
+    print(
+        f"[render] trained FC ({t_fc:.1f}s, last_loss={last_fc:.4e}, "
+        f"opt={args.fc_optimizer}, lr={fc_lr}, "
+        f"bias={args.fc_bias}, init={args.fc_init})",
+        flush=True,
+    )
 
     ko.eval(); fc.eval()
     ko_recons = []
@@ -197,7 +233,8 @@ def main() -> None:
             fc_recons.append(fc(sino).detach().cpu().numpy())
 
     render(test_set, ko_recons, fc_recons, out_path,
-           image_size=geometry.image_size, num_views=geometry.num_views)
+           image_size=geometry.image_size, num_views=geometry.num_views,
+           subtitle=args.fc_tag)
     print(f"[render] wrote {out_path}", flush=True)
 
 
