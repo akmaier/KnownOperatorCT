@@ -268,7 +268,7 @@ def main() -> None:
         ax.axvline(cp, color="black", linestyle=":", linewidth=0.6, alpha=0.5)
     ax.set_xscale("log")
     ax.set_yscale("log")
-    ax.set_xlabel("Training iteration (online: 4 fresh phantoms / iter)")
+    ax.set_xlabel(f"Training iteration (online: {batch_size} fresh phantoms / iter)")
     ax.set_ylabel("FC training MSE")
     ax.set_title(
         f"FC loss decay vs. iteration @ "
