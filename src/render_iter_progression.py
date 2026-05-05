@@ -78,6 +78,8 @@ def main() -> None:
                         "trained and saved here.")
     p.add_argument("--ko-train-size", type=int, default=2048)
     p.add_argument("--ko-num-iterations", type=int, default=5000)
+    p.add_argument("--batch-size", type=int, default=None,
+                   help="Override config's training.batch_size for both KO and FC.")
     args = p.parse_args()
 
     cfg = yaml.safe_load(Path(args.config).read_text())
@@ -90,8 +92,12 @@ def main() -> None:
 
     base_seed = int(cfg["dataset"].get("seed", 1))
     ellipses = tuple(cfg["dataset"]["ellipses_per_slice"])
-    batch_size = int(cfg["training"]["batch_size"])
+    batch_size = (
+        args.batch_size if args.batch_size is not None
+        else int(cfg["training"]["batch_size"])
+    )
     lr = float(cfg["training"]["learning_rate"])
+    print(f"[progression] batch_size={batch_size}", flush=True)
 
     checkpoints = sorted({int(c) for c in args.checkpoints.split(",")})
     print(f"[progression] checkpoints: {checkpoints}", flush=True)
