@@ -109,13 +109,24 @@ def fit_ridge(
         ATB += Xb @ Yb.T
         seen += b
 
-    # Add the ridge term and solve.  Use linalg.solve via the transpose
-    # because we want M (P, Mdim) such that M @ ATA = ATB.
-    eye = torch.eye(Mdim, dtype=torch.float32, device=device)
-    ATA_reg = ATA + lam * eye
-    # solve(ATA_reg.T, ATB.T) returns Z (Mdim, P) with ATA_reg.T @ Z = ATB.T
-    # so M = Z.T.
-    Z = torch.linalg.solve(ATA_reg.T, ATB.T)
+    # Add the ridge term in-place to save 2 GB at 256x256 scale.
+    ATA.diagonal().add_(lam)
+    # Solve  ATA z = ATB.T  for z;  M = z.T.  ATA is symmetric so we don't
+    # need the transpose, and the LU/Cholesky factor PyTorch uses overwrites
+    # only its own internal copy.
+    try:
+        Z = torch.linalg.solve(ATA, ATB.T)
+    except torch.linalg.LinAlgError:
+        # λ too small for this N — the regularised normal equations are
+        # numerically singular in FP32. Fall back to least-squares (which
+        # uses a regularised pseudo-inverse internally). If even lstsq
+        # bombs out, return a sentinel M of zeros; the caller's rRMSE
+        # measurement will catch it as "very bad".
+        try:
+            Z = torch.linalg.lstsq(ATA, ATB.T).solution
+        except Exception:  # pragma: no cover
+            Z = torch.zeros((ATA.shape[0], ATB.shape[0]),
+                            dtype=ATA.dtype, device=ATA.device)
     M = Z.T.contiguous()
     if device.type == "cuda":
         torch.cuda.synchronize(device)
@@ -149,6 +160,10 @@ def parse_args() -> argparse.Namespace:
     p.add_argument("--num-test-stats", type=int, default=50,
                    help="Total test slices used to compute mean ± std rRMSE "
                         "stats per N (the first --num-samples are also rendered).")
+    p.add_argument("--num-save-recons", type=int, default=8,
+                   help="Number of test-slice reconstructions to archive in the "
+                        "NPZ (per N, per seed, best λ). First --num-samples are "
+                        "always included so the rendered figure is reproducible.")
     p.add_argument("--out", required=True)
     p.add_argument("--ko-checkpoint", default=None)
     p.add_argument("--ko-train-size", type=int, default=2048)
@@ -241,7 +256,18 @@ def main() -> None:
     fc_per_n: dict[int, dict] = {}
     raw_log: list[dict] = []  # per-(N, seed, λ) record for transparency
 
-    for n in train_sizes:
+    # NPZ archive: for each (N, seed) save the best-λ FC recons on the first
+    # n_save_recons test slices so the figures can be re-rendered without
+    # re-running training.
+    n_save = max(args.num_samples, args.num_save_recons)
+    n_save = min(n_save, len(test_set_stats))
+    fc_recon_archive = np.zeros(
+        (len(train_sizes), len(seeds), n_save,
+         geometry.image_size, geometry.image_size),
+        dtype=np.float32,
+    )
+
+    for ni, n in enumerate(train_sizes):
         per_seed_best_rrmse: list[float] = []
         per_seed_best_lambda: list[float] = []
         per_seed_t: list[float] = []
@@ -268,6 +294,7 @@ def main() -> None:
                     "N": n, "seed": seed, "lambda": lam,
                     "rrmse_mean": mean_r,
                     "rrmse_std": float(np.std(r_list, ddof=1)) if len(r_list) > 1 else 0.0,
+                    "rrmse_per_slice": r_list,
                     "fit_time_s": dt,
                 })
                 if mean_r < best_r:
@@ -283,13 +310,20 @@ def main() -> None:
             per_seed_best_rrmse.append(best_r)
             per_seed_best_lambda.append(best_l)
             per_seed_t.append(dt)
-            # First seed: cache renders for the figure
-            if s_idx == 0 and best_M is not None:
+            # Cache the best-λ recons for both the figure (first seed, first
+            # num_samples slices) and the NPZ archive (all seeds, first
+            # n_save slices).
+            if best_M is not None:
                 with torch.no_grad():
+                    for k in range(n_save):
+                        recon = predict(
+                            best_M, test_set_stats[k][1],
+                            geometry.image_size, args.use_relu,
+                        ).detach().cpu().numpy()
+                        fc_recon_archive[ni, s_idx, k] = recon
+                if s_idx == 0:
                     fc_recons_at[n] = [
-                        predict(best_M, sino, geometry.image_size, args.use_relu)
-                        .detach().cpu().numpy()
-                        for _, sino in test_set
+                        fc_recon_archive[ni, 0, k] for k in range(args.num_samples)
                     ]
             del best_M
             if device.type == "cuda":
@@ -366,6 +400,60 @@ def main() -> None:
         "fc_per_n": {str(n): fc_per_n[n] for n in train_sizes},
         "raw_per_cell": raw_log,
     }, indent=2))
+
+    # NPZ archive: phantoms + sinograms + KO recons + best-λ FC recons.
+    # This lets us re-render any figure later (different colormaps,
+    # different test slices, side-by-side comparisons across scales)
+    # without needing to retrain. Compressed FP32 keeps it small even at
+    # 256x256: ~50 MB for the entire archive.
+    npz_path = out_path.parent / (out_path.stem + "_arrays.npz")
+    test_phantoms_arr = np.stack([
+        test_set_stats[k][0].detach().cpu().numpy() for k in range(n_save)
+    ]).astype(np.float32)
+    test_sinos_arr = np.stack([
+        test_set_stats[k][1].detach().cpu().numpy() for k in range(n_save)
+    ]).astype(np.float32)
+    ko_recons_arr = np.stack(
+        [ko_recons[k] if k < len(ko_recons) else np.zeros_like(test_phantoms_arr[0])
+         for k in range(n_save)]
+        if len(ko_recons) >= n_save else
+        # Recompute KO recons for any extra slices we want to archive.
+        [ko_recons[k] for k in range(args.num_samples)]
+    ).astype(np.float32)
+    # If we want more KO recons than were rendered, recompute on the fly.
+    if ko_recons_arr.shape[0] < n_save:
+        # Reload KO and predict the missing ones.
+        ko2 = KnownOperatorReconstructor(geometry).to(device)
+        if ko_ckpt and ko_ckpt.exists():
+            ko2.load_state_dict(torch.load(ko_ckpt, map_location=device))
+        ko2.eval()
+        with torch.no_grad():
+            extra = []
+            for k in range(args.num_samples, n_save):
+                extra.append(ko2(test_set_stats[k][1]).detach().cpu().numpy())
+        ko_recons_arr = np.concatenate(
+            [ko_recons_arr] + ([np.stack(extra).astype(np.float32)] if extra else []),
+            axis=0,
+        )
+        del ko2
+        if device.type == "cuda":
+            torch.cuda.empty_cache()
+
+    np.savez_compressed(
+        npz_path,
+        train_sizes=np.array(train_sizes, dtype=np.int64),
+        seeds=np.array(seeds, dtype=np.int64),
+        lambdas=np.array(lambdas, dtype=np.float32),
+        phantoms=test_phantoms_arr,
+        sinos=test_sinos_arr,
+        ko_recons=ko_recons_arr,
+        fc_recons=fc_recon_archive,  # shape (n_N, n_seeds, n_save, H, W)
+        best_lambda_per_n_seed=np.array(
+            [[fc_per_n[n]["best_lambda_per_seed"][si]
+              for si in range(len(seeds))]
+             for n in train_sizes], dtype=np.float32,
+        ),
+    )
     print(f"[ridge] wrote {out_path}, {json_path}", flush=True)
 
 
