@@ -25,4 +25,6 @@ venv/
 !/results/sample_efficiency_128/**
 !/results/sample_efficiency_256/
 !/results/sample_efficiency_256/**
+# Re-exclude OS junk inside the allow-listed result subdirectories.
+/results/**/.DS_Store
 /.archive/
