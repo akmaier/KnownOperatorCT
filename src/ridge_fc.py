@@ -137,7 +137,11 @@ def parse_args() -> argparse.Namespace:
                    help="Comma-separated N values, e.g., 4,16,64,256,1024,2048")
     p.add_argument("--lambda", dest="lam", type=float, default=1.0,
                    help="Ridge regularization weight (default 1.0).")
-    p.add_argument("--num-samples", type=int, default=2)
+    p.add_argument("--num-samples", type=int, default=2,
+                   help="Number of test slices rendered in the figure.")
+    p.add_argument("--num-test-stats", type=int, default=50,
+                   help="Total test slices used to compute mean ± std rRMSE "
+                        "stats per N (the first --num-samples are also rendered).")
     p.add_argument("--out", required=True)
     p.add_argument("--ko-checkpoint", default=None)
     p.add_argument("--ko-train-size", type=int, default=2048)
@@ -162,11 +166,15 @@ def main() -> None:
     train_sizes = sorted({int(n) for n in args.train_sizes.split(",")})
     print(f"[ridge] train_sizes={train_sizes}, lambda={args.lam}", flush=True)
 
-    # Test set (fixed)
-    test_set = materialize(
-        geometry, args.num_samples, seed=base_seed + 10_000,
+    # Test set (fixed). We materialize a large pool for stats and render
+    # only the first `num_samples` slices in the figure.
+    n_test = max(args.num_samples, args.num_test_stats)
+    test_set_full = materialize(
+        geometry, n_test, seed=base_seed + 10_000,
         ellipses=ellipses, device=device,
     )
+    test_set = test_set_full[: args.num_samples]
+    test_set_stats = test_set_full
 
     # ----- KO baseline (load from cache or train) -----
     ko = KnownOperatorReconstructor(geometry).to(device)
@@ -197,17 +205,28 @@ def main() -> None:
 
     ko.eval()
     ko_recons = []
+    ko_rrmses_full: list[float] = []
     with torch.no_grad():
+        for img, sino in test_set_stats:
+            recon = ko(sino).detach()
+            r = float(((recon - img) ** 2).mean() ** 0.5
+                      / (img.abs().max() + 1e-9))
+            ko_rrmses_full.append(r)
+        # The first `num_samples` of test_set_stats == test_set; cache their recons for the figure.
         for _, sino in test_set:
             ko_recons.append(ko(sino).detach().cpu().numpy())
     del ko
     if device.type == "cuda":
         torch.cuda.empty_cache()
+    ko_rrmse_mean = float(np.mean(ko_rrmses_full))
+    ko_rrmse_std = float(np.std(ko_rrmses_full, ddof=1)) if len(ko_rrmses_full) > 1 else 0.0
+    print(f"[ridge] KO over {len(ko_rrmses_full)} test slices: "
+          f"rRMSE = {ko_rrmse_mean:.4f} ± {ko_rrmse_std:.4f}", flush=True)
 
     # ----- Ridge fits at each N -----
     fc_recons_at: dict[int, list] = {}
     fit_times: dict[int, float] = {}
-    train_mse: dict[int, float] = {}
+    fc_rrmse_per_n: dict[int, dict] = {}
     for n in train_sizes:
         seed = base_seed + 1001 + n  # different per N (matches surrogate convention)
         M, dt = fit_ridge(
@@ -217,16 +236,34 @@ def main() -> None:
         )
         fit_times[n] = dt
         with torch.no_grad():
+            # Render slices (first num_samples)
             fc_recons_at[n] = [
                 predict(M, sino, geometry.image_size, args.use_relu)
                 .detach().cpu().numpy()
                 for _, sino in test_set
             ]
+            # Stats over the full test pool
+            r_list = []
+            for img, sino in test_set_stats:
+                recon = predict(M, sino, geometry.image_size, args.use_relu).detach()
+                r = float(((recon - img) ** 2).mean() ** 0.5
+                          / (img.abs().max() + 1e-9))
+                r_list.append(r)
+            fc_rrmse_per_n[n] = {
+                "values": r_list,
+                "mean": float(np.mean(r_list)),
+                "std": float(np.std(r_list, ddof=1)) if len(r_list) > 1 else 0.0,
+            }
         # Free M aggressively before next fit
         del M
         if device.type == "cuda":
             torch.cuda.empty_cache()
-        print(f"[ridge] N={n:>5d}  fit_time={dt:.1f}s", flush=True)
+        print(
+            f"[ridge] N={n:>5d}  fit_time={dt:.1f}s  "
+            f"FC rRMSE = {fc_rrmse_per_n[n]['mean']:.4f} ± {fc_rrmse_per_n[n]['std']:.4f} "
+            f"(over {len(r_list)} slices)",
+            flush=True,
+        )
 
     # ----- Render figure: phantom | KO | one column per N -----
     n_rows = len(test_set)
@@ -273,7 +310,11 @@ def main() -> None:
         "train_sizes": train_sizes,
         "lambda": args.lam,
         "use_relu": args.use_relu,
+        "num_test_stats": len(test_set_stats),
         "fit_times_s": fit_times,
+        "ko_rrmse": {"mean": ko_rrmse_mean, "std": ko_rrmse_std,
+                     "values": ko_rrmses_full},
+        "fc_rrmse_per_n": {str(n): fc_rrmse_per_n[n] for n in train_sizes},
     }, indent=2))
     print(f"[ridge] wrote {out_path}, {json_path}", flush=True)
 
