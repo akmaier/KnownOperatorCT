@@ -259,8 +259,15 @@ A more discursive description follows.
 ## Verifying that reproduction succeeded
 
 * **CPU surrogate.** `cpu_experiments/results/cpu_multiH_summary.json`
-  reports a per-$H$ ratio `sigma_FC / sigma_KO`. Reproduction is
+  reports a per-$H$ field `empirical_sigma_ratio`, defined as
+  $\sigma_{\text{FC}} \cdot p_{\text{FC}} / (\sigma_{\text{KO}} \cdot p_{\text{KO}})$
+  — the parameter-scaled coefficient of the calibrated bound
+  $\mathrm{floor} + \sigma \cdot p \cdot \log N / N$. Reproduction is
   consistent with the paper if this ratio grows monotonically with $H$.
+  Reference values: $\approx 483, 1099, 1917$ for $H = 8, 16, 32$. (The
+  raw width ratio $\sigma_{\text{FC}} / \sigma_{\text{KO}}$ that the
+  script also prints to stdout *decreases* with $H$ on this surrogate
+  and is not the right quantity to check.)
 * **128×128 / 256×256 sweeps.** Open
   `gpu_experiments/results/sample_efficiency_{128,256}/fc_ko_sweep.png`.
   At 128² the KO and FC ridge curves cross around $N \in [1024, 2048]$;
