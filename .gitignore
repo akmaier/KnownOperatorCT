@@ -25,6 +25,12 @@ venv/
 !/results/sample_efficiency_64/**
 !/results/ridge_fc_sample_efficiency.png
 !/results/ridge_fc_sample_efficiency.csv
+!/results/sample_efficiency_64/fc_ko_sample_efficiency.*
+!/results/sample_efficiency_128/fc_ko_sample_efficiency.*
+!/results/sample_efficiency_256/fc_ko_sample_efficiency.*
+!/results/sample_efficiency_64/fc_ko_sweep*
+!/results/sample_efficiency_128/fc_ko_sweep*
+!/results/sample_efficiency_256/fc_ko_sweep*
 !/results/sample_efficiency_128/
 !/results/sample_efficiency_128/**
 !/results/sample_efficiency_256/

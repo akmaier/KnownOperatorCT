@@ -65,6 +65,18 @@ class AggregateRow:
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser()
     parser.add_argument("--config", required=True)
+    parser.add_argument("--models",
+                        default="known_operator,fully_connected",
+                        help="Comma-separated list of models to sweep "
+                             "(default: both). Use 'known_operator' alone "
+                             "to skip the FC SGD path when ridge results "
+                             "are already in hand.")
+    parser.add_argument("--num-iterations", type=int, default=None,
+                        help="Override training.num_iterations from config.")
+    parser.add_argument("--seeds", default=None,
+                        help="Override ablation.seeds (comma-separated).")
+    parser.add_argument("--batch-size", type=int, default=None,
+                        help="Override training.batch_size from config.")
     return parser.parse_args()
 
 
