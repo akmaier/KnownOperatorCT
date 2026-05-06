@@ -1,3 +1,7 @@
+# GPU path: full-resolution PyTorch pipeline under src/ and gpu_experiments/.
+# For the lightweight CPU sample-efficiency sweeps in cpu_experiments/, use
+# cpu_experiments/requirements.txt instead — it has no torch dependency and
+# installs in seconds.
 numpy>=1.26
 scipy>=1.11
 matplotlib>=3.8

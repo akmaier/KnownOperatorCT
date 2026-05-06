@@ -36,3 +36,5 @@ For sanity checks the bundle can also run on a single $16$ GB GPU (e.g. T4 or A1
 ## CPU surrogate
 
 The surrogate experiment in `src/run_surrogate.py` runs on a single CPU in under five minutes. It does not require a GPU and is useful as a smoke test of the bundle.
+
+The standalone CPU sweep in [`../cpu_experiments/`](../cpu_experiments/) (Figure 3 of the paper, $H \in \{8, 16, 32\}$) also runs on a single CPU and finishes in well under a minute. It depends only on numpy, scipy, and matplotlib — no PyTorch, no CUDA — and is the recommended end-to-end check on hosts without a GPU.

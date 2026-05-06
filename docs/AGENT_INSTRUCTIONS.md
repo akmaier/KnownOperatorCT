@@ -1,6 +1,8 @@
 # Cloud Agent Instructions
 
-This document is the contract between the human reviewer and the automated cloud agent that executes this reproduction bundle. The agent **must** follow these steps in order and **must** write all results into a single Markdown file at `results/RESULTS.md`. The reviewer will harvest only that file.
+This document is the contract between the human reviewer and the automated cloud agent that executes the **GPU reproduction path** (top-level `src/` plus `gpu_experiments/`). The agent **must** follow these steps in order and **must** write all results into a single Markdown file at `results/RESULTS.md`. The reviewer will harvest only that file.
+
+A lightweight CPU-only path (Figure 3 surrogate sweeps) lives in [`../cpu_experiments/`](../cpu_experiments/) and is fully self-contained — different dependencies, different output filenames, no GPU required. If the hardware in section 0 below is unavailable, run that path instead and report under `## Environment failures` in `RESULTS.md`.
 
 ## 0. Hardware and operating system requirements
 
