@@ -14,8 +14,8 @@
 #SBATCH --cpus-per-task=128
 #SBATCH --mem=700G
 #SBATCH --time=24:00:00
-#SBATCH --output=results/h100_all_%j.out
-#SBATCH --error=results/h100_all_%j.err
+#SBATCH --output=gpu_experiments/results/h100_all_%j.out
+#SBATCH --error=gpu_experiments/results/h100_all_%j.err
 #SBATCH --export=NONE
 
 unset SLURM_EXPORT_ENV

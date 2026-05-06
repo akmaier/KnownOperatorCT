@@ -25,7 +25,7 @@ Machines with < 24 GB GPUs use FSDP to shard across multiple GPUs.
 > and Adagrad state but PyTorch needs another ~5.6 GB for gradients and
 > ~3 GB for backward-pass activations on top of that — the total
 > exceeds 24 GB and OOMs in practice. On 24 GB hardware, run FC via
-> FSDP instead (`run_fc_fsdp.sh` or `cluster/slurm/train_fc_fsdp.sbatch`).
+> FSDP instead (`run_fc_fsdp.sh` or `gpu_experiments/cluster/slurm/train_fc_fsdp.sbatch`).
 
 For the full-resolution FC (512×512, 24B params), use the H100 cluster scripts in `slurm/`.
 
@@ -61,7 +61,7 @@ CUDA_VISIBLE_DEVICES=1 bash cluster/run_ko.sh     # Use a different GPU
 The cluster has a soft 24-hour wall-time limit per job. Our trainers now
 checkpoint every `training.checkpoint_every` iterations (see configs) and
 catch SIGTERM / SIGUSR1 cleanly, so a job killed at the time limit leaves a
-resume snapshot at `results/checkpoints/<model>.resume.pt`. The sbatch
+resume snapshot at `gpu_experiments/results/checkpoints/<model>.resume.pt`. The sbatch
 wrappers under [`slurm/`](slurm/) auto-resubmit with `--dependency=afterok`
 until each model writes its `<model>.done` sentinel.
 
@@ -75,7 +75,7 @@ ssh <user>@<submit-node>
 mkdir -p /cluster/$(whoami) && cd /cluster/$(whoami)
 git clone <repo-url> known_operator_ct_release
 cd known_operator_ct_release
-bash cluster/slurm/setup.sh        # builds .venv on /cluster, verifies torch+CUDA on a compute node
+bash gpu_experiments/cluster/slurm/setup.sh        # builds .venv on /cluster, verifies torch+CUDA on a compute node
 ```
 
 `setup.sh` insists the repo lives on `/cluster/<user>` because compute nodes
@@ -88,11 +88,11 @@ mount `/cluster` (and `/scratch` for transient data) but heavy I/O against
 cd /cluster/$(whoami)/known_operator_ct_release
 
 # default: FC trains via 4-GPU FSDP (any 4-GPU node with >= 11 GB per GPU)
-bash cluster/slurm/submit_chain.sh
+bash gpu_experiments/cluster/slurm/submit_chain.sh
 
 # opt-in: FC trains on a single 48 GB GPU. Usually pends on any 48 GB
 # node unless one is free.
-bash cluster/slurm/submit_chain.sh --single
+bash gpu_experiments/cluster/slurm/submit_chain.sh --single
 ```
 
 The chain is:
@@ -105,34 +105,34 @@ instead of running on stale state.
 ```bash
 squeue -u $(whoami)                    # your jobs
 sinfo -h -o "%n %T %G"                 # node + GPU types per node
-tail -f results/slurm/train_ko-*.out   # live log of the latest KO step
+tail -f gpu_experiments/results/slurm/train_ko-*.out   # live log of the latest KO step
 ```
 
 ### What gets written
 
-* `results/checkpoints/<model>.resume.pt` — periodic snapshot, removed on completion
-* `results/checkpoints/<model>.pt`        — final weights (eval reads this)
-* `results/checkpoints/<model>.done`      — empty sentinel signalling completion
+* `gpu_experiments/results/checkpoints/<model>.resume.pt` — periodic snapshot, removed on completion
+* `gpu_experiments/results/checkpoints/<model>.pt`        — final weights (eval reads this)
+* `gpu_experiments/results/checkpoints/<model>.done`      — empty sentinel signalling completion
 * `results/ct_<model>_metrics.json`       — full training metrics
 * `results/ct_<model>_eval.json`          — test-set metrics
 * `results/RESULTS.md`                    — final harvest report
-* `results/slurm/<job>-<id>.out|err`      — per-job stdout / stderr
+* `gpu_experiments/results/slurm/<job>-<id>.out|err`      — per-job stdout / stderr
 
 ### Individual jobs
 
 If you'd rather submit pieces by hand:
 
 ```bash
-sbatch cluster/slurm/surrogate.sbatch
-sbatch cluster/slurm/train_ko.sbatch
-sbatch --export=ALL,MODEL=known_operator,CONFIG=configs/ct_full_resolution.yaml cluster/slurm/eval.sbatch
-sbatch cluster/slurm/train_fc.sbatch          # or: cluster/slurm/train_fc_fsdp.sbatch
-sbatch --export=ALL,MODEL=fully_connected,CONFIG=configs/ct_fc_lab.yaml cluster/slurm/eval.sbatch
-sbatch cluster/slurm/harvest.sbatch
+sbatch gpu_experiments/cluster/slurm/surrogate.sbatch
+sbatch gpu_experiments/cluster/slurm/train_ko.sbatch
+sbatch --export=ALL,MODEL=known_operator,CONFIG=configs/ct_full_resolution.yaml gpu_experiments/cluster/slurm/eval.sbatch
+sbatch gpu_experiments/cluster/slurm/train_fc.sbatch          # or: gpu_experiments/cluster/slurm/train_fc_fsdp.sbatch
+sbatch --export=ALL,MODEL=fully_connected,CONFIG=configs/ct_fc_lab.yaml gpu_experiments/cluster/slurm/eval.sbatch
+sbatch gpu_experiments/cluster/slurm/harvest.sbatch
 ```
 
 Override the resubmission cap with `RESUBMIT_MAX`:
 
 ```bash
-sbatch --export=ALL,RESUBMIT_MAX=20 cluster/slurm/train_ko.sbatch
+sbatch --export=ALL,RESUBMIT_MAX=20 gpu_experiments/cluster/slurm/train_ko.sbatch
 ```

@@ -6,8 +6,8 @@
 #SBATCH --gres=gpu:1
 #SBATCH --time=02:00:00
 # #SBATCH --exclude=node1,node2,...   # uncomment + add your cluster's broken or small-GPU nodes
-#SBATCH --output=results/slurm/eval-%j.out
-#SBATCH --error=results/slurm/eval-%j.err
+#SBATCH --output=gpu_experiments/results/slurm/eval-%j.out
+#SBATCH --error=gpu_experiments/results/slurm/eval-%j.err
 #
 # Evaluate one model. Pass model + config via env:
 #   MODEL=known_operator   CONFIG=configs/ct_full_resolution.yaml
@@ -15,11 +15,11 @@
 #
 # Submit from the repo root:
 #   sbatch --export=ALL,MODEL=known_operator,CONFIG=configs/ct_full_resolution.yaml \
-#          cluster/slurm/eval.sbatch
+#          gpu_experiments/cluster/slurm/eval.sbatch
 set -euo pipefail
 
 cd "$SLURM_SUBMIT_DIR"
-mkdir -p results/slurm
+mkdir -p gpu_experiments/results/slurm
 source .venv/bin/activate
 
 : "${MODEL:?must set MODEL=known_operator|fully_connected}"

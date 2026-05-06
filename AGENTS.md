@@ -24,10 +24,10 @@ This is a single-service Python scientific computing project (no web servers, da
 
 ### H100 Slurm cluster (4x H100 94 GB per node, 768 GB RAM)
 
-SLURM job scripts are in `slurm/`:
-- `sbatch slurm/h100_run_ko.sh` — KO train+eval on 1x H100 (~2h)
-- `sbatch slurm/h100_run_fc.sh` — FC train+eval on 4x H100 via FSDP (~24h)
-- `sbatch slurm/h100_run_all.sh` — Full pipeline: surrogate + KO + FC + harvest (~24h)
+SLURM job scripts are in `gpu_experiments/slurm/`:
+- `sbatch gpu_experiments/slurm/h100_run_ko.sh` — KO train+eval on 1x H100 (~2h)
+- `sbatch gpu_experiments/slurm/h100_run_fc.sh` — FC train+eval on 4x H100 via FSDP (~24h)
+- `sbatch gpu_experiments/slurm/h100_run_all.sh` — Full pipeline: surrogate + KO + FC + harvest (~24h)
 
 The FC FSDP job requests `--mem=700G` for CPU-offloaded optimizer state. The `h100` partition must be specified explicitly (otherwise jobs may land in a preempt queue with a 2h guarantee).
 

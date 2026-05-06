@@ -7,8 +7,8 @@
 #SBATCH --time=23:59:00
 #SBATCH --signal=B:USR1@180
 # #SBATCH --exclude=node1,node2,...   # uncomment + add your cluster's broken or small-GPU nodes
-#SBATCH --output=results/slurm/train_ko-%j.out
-#SBATCH --error=results/slurm/train_ko-%j.err
+#SBATCH --output=gpu_experiments/results/slurm/train_ko-%j.out
+#SBATCH --error=gpu_experiments/results/slurm/train_ko-%j.err
 #
 # Train the Known Operator network at 512x512 / 180 views.
 #
@@ -21,16 +21,16 @@
 #                          resubmits itself with afterok:<this job> until done
 #                          (capped by RESUBMIT_MAX, default 10).
 #
-# Submit from the repo root:  sbatch cluster/slurm/train_ko.sbatch
+# Submit from the repo root:  sbatch gpu_experiments/cluster/slurm/train_ko.sbatch
 set -uo pipefail
 
 cd "$SLURM_SUBMIT_DIR"
-mkdir -p results/slurm results/checkpoints
+mkdir -p gpu_experiments/results/slurm gpu_experiments/results/checkpoints
 source .venv/bin/activate
-source cluster/slurm/_train_lib.sh
+source gpu_experiments/cluster/slurm/_train_lib.sh
 
 CHAIN_IDX="${CHAIN_IDX:-1}"
-DONE_MARKER="results/checkpoints/known_operator.done"
+DONE_MARKER="gpu_experiments/results/checkpoints/known_operator.done"
 
 echo "[$(date '+%F %T')] node=$(hostname) job=$SLURM_JOB_ID chain=$CHAIN_IDX"
 nvidia-smi --query-gpu=name,memory.total --format=csv,noheader || true

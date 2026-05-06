@@ -14,8 +14,8 @@
 #                       └── harvest (CPU; depends on both eval jobs)
 #
 # Usage:
-#   bash cluster/slurm/submit_chain.sh             # FC via 4-GPU FSDP (default)
-#   bash cluster/slurm/submit_chain.sh --single    # FC on a single 48 GB GPU (rare)
+#   bash gpu_experiments/cluster/slurm/submit_chain.sh             # FC via 4-GPU FSDP (default)
+#   bash gpu_experiments/cluster/slurm/submit_chain.sh --single    # FC on a single 48 GB GPU (rare)
 #
 # Why FSDP is the default: the FC model + Adagrad state + gradients want
 # ~28 GB at peak. The only nodes with enough headroom on a single GPU
@@ -27,10 +27,10 @@
 # runs once both finished cleanly.
 set -euo pipefail
 
-cd "$(dirname "${BASH_SOURCE[0]}")/../.."
+cd "$(dirname "${BASH_SOURCE[0]}")/../../.."
 
 # Slurm opens the --output / --error paths before the sbatch script runs.
-mkdir -p results/slurm results/checkpoints
+mkdir -p gpu_experiments/results/slurm gpu_experiments/results/checkpoints
 
 FC_MODE="fsdp"
 case "${1:-}" in
@@ -52,36 +52,36 @@ KO_CFG="configs/ct_full_resolution.yaml"
 FC_CFG="configs/ct_fc_lab.yaml"
 
 echo "Submitting surrogate ..."
-SURR_ID=$(submit cluster/slurm/surrogate.sbatch)
+SURR_ID=$(submit gpu_experiments/cluster/slurm/surrogate.sbatch)
 
 echo "Submitting KO training (after surrogate) ..."
-KO_TRAIN_ID=$(submit --dependency=afterok:"$SURR_ID" cluster/slurm/train_ko.sbatch)
+KO_TRAIN_ID=$(submit --dependency=afterok:"$SURR_ID" gpu_experiments/cluster/slurm/train_ko.sbatch)
 
 echo "Submitting KO eval (after KO training) ..."
 KO_EVAL_ID=$(submit \
     --dependency=afterok:"$KO_TRAIN_ID" \
     --export="ALL,MODEL=known_operator,CONFIG=$KO_CFG" \
-    cluster/slurm/eval.sbatch)
+    gpu_experiments/cluster/slurm/eval.sbatch)
 
 if [ "$FC_MODE" = "fsdp" ]; then
     echo "Submitting FC FSDP training (after surrogate) ..."
-    FC_TRAIN_ID=$(submit --dependency=afterok:"$SURR_ID" cluster/slurm/train_fc_fsdp.sbatch)
+    FC_TRAIN_ID=$(submit --dependency=afterok:"$SURR_ID" gpu_experiments/cluster/slurm/train_fc_fsdp.sbatch)
 else
     echo "Submitting FC single-GPU training (after surrogate) ..."
     echo "  WARNING: needs a 48 GB GPU; the 24 GB GPU OOMs in backward."
-    FC_TRAIN_ID=$(submit --dependency=afterok:"$SURR_ID" cluster/slurm/train_fc.sbatch)
+    FC_TRAIN_ID=$(submit --dependency=afterok:"$SURR_ID" gpu_experiments/cluster/slurm/train_fc.sbatch)
 fi
 
 echo "Submitting FC eval (after FC training) ..."
 FC_EVAL_ID=$(submit \
     --dependency=afterok:"$FC_TRAIN_ID" \
     --export="ALL,MODEL=fully_connected,CONFIG=$FC_CFG" \
-    cluster/slurm/eval.sbatch)
+    gpu_experiments/cluster/slurm/eval.sbatch)
 
 echo "Submitting harvest (after both evals) ..."
 HARVEST_ID=$(submit \
     --dependency=afterok:"$KO_EVAL_ID":"$FC_EVAL_ID" \
-    cluster/slurm/harvest.sbatch)
+    gpu_experiments/cluster/slurm/harvest.sbatch)
 
 echo
 echo "Chain submitted:"

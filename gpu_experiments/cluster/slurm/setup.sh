@@ -9,10 +9,10 @@
 #
 # Usage (from the cluster's submit node):
 #   cd /cluster/$(whoami)/known_operator_ct_release
-#   bash cluster/slurm/setup.sh
+#   bash gpu_experiments/cluster/slurm/setup.sh
 set -euo pipefail
 
-cd "$(dirname "${BASH_SOURCE[0]}")/../.."
+cd "$(dirname "${BASH_SOURCE[0]}")/../../.."
 ROOT_DIR="$(pwd)"
 
 case "$ROOT_DIR" in
@@ -26,8 +26,8 @@ esac
 
 # Pre-create the directories Slurm needs to write into. Slurm opens
 # --output / --error paths *before* our sbatch script gets to run, so any
-# in-script `mkdir -p results/slurm` is too late on the first run.
-mkdir -p results/slurm results/checkpoints
+# in-script `mkdir -p gpu_experiments/results/slurm` is too late on the first run.
+mkdir -p gpu_experiments/results/slurm gpu_experiments/results/checkpoints
 
 echo "Building venv at $ROOT_DIR/.venv ..."
 echo "(this needs network — only the submit node has it; running here.)"
@@ -118,4 +118,4 @@ if torch.cuda.is_available():
 
 echo
 echo "Setup complete. Submit jobs with:"
-echo "  bash cluster/slurm/submit_chain.sh"
+echo "  bash gpu_experiments/cluster/slurm/submit_chain.sh"

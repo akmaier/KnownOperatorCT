@@ -16,26 +16,26 @@
 # usually busy. Use train_fc_fsdp.sbatch instead unless you specifically
 # want a single-GPU run.
 # #SBATCH --exclude=node1,node2,...   # uncomment + add your cluster's broken or small-GPU nodes
-#SBATCH --output=results/slurm/train_fc-%j.out
-#SBATCH --error=results/slurm/train_fc-%j.err
+#SBATCH --output=gpu_experiments/results/slurm/train_fc-%j.out
+#SBATCH --error=gpu_experiments/results/slurm/train_fc-%j.err
 #
 # Train the Fully Connected network at 256x256 / 90 views on a single big GPU.
 # For nodes with smaller GPUs (V100, 1080 Ti, RTX 5000), use train_fc_fsdp.sbatch
 # instead — it shards across all 4 GPUs of the node.
 #
-# Submit from the repo root:  sbatch cluster/slurm/train_fc.sbatch
+# Submit from the repo root:  sbatch gpu_experiments/cluster/slurm/train_fc.sbatch
 set -uo pipefail
 
 cd "$SLURM_SUBMIT_DIR"
-mkdir -p results/slurm results/checkpoints
+mkdir -p gpu_experiments/results/slurm gpu_experiments/results/checkpoints
 source .venv/bin/activate
-source cluster/slurm/_train_lib.sh
+source gpu_experiments/cluster/slurm/_train_lib.sh
 
 # Help the caching allocator avoid fragmentation (matches the FSDP wrapper).
 export PYTORCH_CUDA_ALLOC_CONF="expandable_segments:True"
 
 CHAIN_IDX="${CHAIN_IDX:-1}"
-DONE_MARKER="results/checkpoints/fully_connected.done"
+DONE_MARKER="gpu_experiments/results/checkpoints/fully_connected.done"
 
 echo "[$(date '+%F %T')] node=$(hostname) job=$SLURM_JOB_ID chain=$CHAIN_IDX"
 nvidia-smi --query-gpu=name,memory.total --format=csv,noheader || true

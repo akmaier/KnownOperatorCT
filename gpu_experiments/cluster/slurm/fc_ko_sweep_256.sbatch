@@ -7,8 +7,8 @@
 #SBATCH --time=12:00:00
 # --nodelist=<48GB-node>     # pin to a 48 GB GPU node here
 # #SBATCH --exclude=node1,node2,...   # uncomment + add your cluster's broken or small-GPU nodes
-#SBATCH --output=results/slurm/fc_ko_256-%j.out
-#SBATCH --error=results/slurm/fc_ko_256-%j.err
+#SBATCH --output=gpu_experiments/results/slurm/fc_ko_256-%j.out
+#SBATCH --error=gpu_experiments/results/slurm/fc_ko_256-%j.err
 #
 # Unified KO + FC ridge sweep at 256x256 on a 48 GB GPU (e.g. RTX 8000 / A6000).
 # Heavy: 18 cells x (KO 5000 iter + FC 5 lambdas). KO ~5 min/cell on
@@ -17,7 +17,7 @@
 set -euo pipefail
 
 cd "$SLURM_SUBMIT_DIR"
-mkdir -p results/slurm "results/sample_efficiency_256"
+mkdir -p gpu_experiments/results/slurm "gpu_experiments/results/sample_efficiency_256"
 source .venv/bin/activate
 export PYTORCH_CUDA_ALLOC_CONF="expandable_segments:True"
 
@@ -33,6 +33,6 @@ python src/fc_ko_sample_efficiency.py \
     --num-test-stats 50 \
     --num-samples 2 \
     --num-save-recons 8 \
-    --out results/sample_efficiency_256/fc_ko_sweep.png
+    --out gpu_experiments/results/sample_efficiency_256/fc_ko_sweep.png
 
 echo "[$(date '+%F %T')] done"

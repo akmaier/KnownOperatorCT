@@ -7,7 +7,7 @@
 #   CUDA_VISIBLE_DEVICES=2 bash cluster/run_ko.sh # GPU 2
 set -euo pipefail
 
-cd "$(dirname "${BASH_SOURCE[0]}")/.."
+cd "$(dirname "${BASH_SOURCE[0]}")/../.."
 source .venv/bin/activate
 
 echo "=== GPU ==="

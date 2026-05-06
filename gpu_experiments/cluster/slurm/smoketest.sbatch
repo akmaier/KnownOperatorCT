@@ -6,15 +6,15 @@
 #SBATCH --gres=gpu:1
 #SBATCH --time=00:05:00
 # #SBATCH --exclude=node1,node2,...   # uncomment + add your cluster's broken or small-GPU nodes
-#SBATCH --output=results/slurm/smoketest-%j.out
-#SBATCH --error=results/slurm/smoketest-%j.err
+#SBATCH --output=gpu_experiments/results/slurm/smoketest-%j.out
+#SBATCH --error=gpu_experiments/results/slurm/smoketest-%j.err
 #
 # 30-second sanity check: GPU visible, torch+CUDA happy, a matmul runs.
-# Submit from the repo root:  sbatch cluster/slurm/smoketest.sbatch
+# Submit from the repo root:  sbatch gpu_experiments/cluster/slurm/smoketest.sbatch
 set -euo pipefail
 
 cd "$SLURM_SUBMIT_DIR"
-mkdir -p results/slurm
+mkdir -p gpu_experiments/results/slurm
 source .venv/bin/activate
 
 echo "=== node ==="

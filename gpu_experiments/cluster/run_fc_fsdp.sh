@@ -7,7 +7,7 @@
 #   CUDA_VISIBLE_DEVICES=0,1 bash cluster/run_fc_fsdp.sh  # Specific GPUs
 set -euo pipefail
 
-cd "$(dirname "${BASH_SOURCE[0]}")/.."
+cd "$(dirname "${BASH_SOURCE[0]}")/../.."
 source .venv/bin/activate
 
 NGPU=$(python -c "import torch; print(torch.cuda.device_count())")

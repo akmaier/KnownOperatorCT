@@ -15,20 +15,20 @@
 # some nodes are broken; some mix GPU types; 2-GPU nodes have <4 GPUs (filtered
 # out by --gres=gpu:4 anyway) and are also broken.
 # #SBATCH --exclude=node1,node2,...   # uncomment + add your cluster's broken or small-GPU nodes
-#SBATCH --output=results/slurm/train_fc_fsdp-%j.out
-#SBATCH --error=results/slurm/train_fc_fsdp-%j.err
+#SBATCH --output=gpu_experiments/results/slurm/train_fc_fsdp-%j.out
+#SBATCH --error=gpu_experiments/results/slurm/train_fc_fsdp-%j.err
 #
 # Train the Fully Connected network at 256x256 / 90 views with FSDP across
 # 4 GPUs of one node. Use this on machines whose individual GPUs are < 24 GB
 # (V100, 1080 Ti, RTX 5000).
 #
-# Submit from the repo root:  sbatch cluster/slurm/train_fc_fsdp.sbatch
+# Submit from the repo root:  sbatch gpu_experiments/cluster/slurm/train_fc_fsdp.sbatch
 set -uo pipefail
 
 cd "$SLURM_SUBMIT_DIR"
-mkdir -p results/slurm results/checkpoints
+mkdir -p gpu_experiments/results/slurm gpu_experiments/results/checkpoints
 source .venv/bin/activate
-source cluster/slurm/_train_lib.sh
+source gpu_experiments/cluster/slurm/_train_lib.sh
 
 # FSDP all-gathers the full 5.6 GB weight matrix on every rank during forward
 # and again during backward. On 16 GB GPUs (V100, RTX 5000) PyTorch's caching
@@ -47,7 +47,7 @@ export PYTORCH_CUDA_ALLOC_CONF="expandable_segments:True"
 export FSDP_CPU_OFFLOAD=1
 
 CHAIN_IDX="${CHAIN_IDX:-1}"
-DONE_MARKER="results/checkpoints/fully_connected.done"
+DONE_MARKER="gpu_experiments/results/checkpoints/fully_connected.done"
 
 NGPU=$(python -c "import torch; print(torch.cuda.device_count())")
 echo "[$(date '+%F %T')] node=$(hostname) job=$SLURM_JOB_ID chain=$CHAIN_IDX ngpu=$NGPU"

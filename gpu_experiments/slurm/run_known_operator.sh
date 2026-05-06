@@ -8,8 +8,8 @@
 #SBATCH --ntasks=1
 #SBATCH --cpus-per-task=16
 #SBATCH --time=02:00:00
-#SBATCH --output=results/slurm_ko_%j.out
-#SBATCH --error=results/slurm_ko_%j.err
+#SBATCH --output=gpu_experiments/results/slurm_ko_%j.out
+#SBATCH --error=gpu_experiments/results/slurm_ko_%j.err
 #SBATCH --export=NONE
 
 unset SLURM_EXPORT_ENV

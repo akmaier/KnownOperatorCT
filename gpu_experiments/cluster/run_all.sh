@@ -8,7 +8,7 @@
 #   CUDA_VISIBLE_DEVICES=0 bash cluster/run_all.sh
 set -euo pipefail
 
-cd "$(dirname "${BASH_SOURCE[0]}")/.."
+cd "$(dirname "${BASH_SOURCE[0]}")/../.."
 source .venv/bin/activate
 mkdir -p results
 
