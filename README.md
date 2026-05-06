@@ -111,12 +111,29 @@ pools per $(N, \text{seed})$ cell using the script
 `src/fc_ko_sample_efficiency.py`. They run equally well from a plain
 shell on any single-GPU host or as Slurm batch jobs.
 
-**Minimum hardware:**
+**Hardware × approximate wall time** (one full sweep = 6 train sizes × 3 seeds = 18 cells):
 
-| Sweep | GPU memory | Wall time (single GPU) | Pre-rendered artifacts |
-|---|---|---|---|
-| 128×128, $V=60$ | $\ge 24$ GB (e.g. RTX 6000) | $\sim 3$–$4$ h | `gpu_experiments/results/sample_efficiency_128/fc_ko_sweep.{png,json,npz}` |
-| 256×256, $V=90$ | $\ge 48$ GB (e.g. RTX 8000 / A6000 / A100 / H100) | $\sim 2$–$2.5$ h | `gpu_experiments/results/sample_efficiency_256/fc_ko_sweep.{png,json,npz}` |
+| GPU class | 128² sweep | 256² sweep |
+|---|---|---|
+| RTX 6000 (24 GB, Turing) | ≈ 2–4 h | OOM in FC backward — fall back to FSDP |
+| RTX 8000 / A6000 (48 GB) | ≈ 1–2 h | ≈ 2–2.5 h |
+| A100 (40 / 80 GB) | well under 1 h | ≈ 1–1.5 h |
+| H100 (80 / 94 GB) | ≈ 20–40 min | ≈ 45–75 min |
+
+Per-cell breakdown for the 256² sweep on RTX 8000: pool generation
+$\approx 90$ s at $N = 2048$; KO Adagrad SGD $\approx 5$ min/cell; FC
+ridge across 5 lambdas $\approx 5$ s/cell. The 128² sweep is dominated
+by KO SGD; cells finish in 2–5 min each on a 48 GB card and 5–15 min
+each on a 24 GB card.
+
+Pre-rendered reference artifacts ship with the bundle at
+`gpu_experiments/results/sample_efficiency_{128,256}/fc_ko_sweep.{png,json,npz}`
+so reviewers can verify the figures without re-running the sweep.
+
+Numbers above are estimates; A100/H100 figures are extrapolated from
+the FLOPS ratio against an RTX 8000 reference run. Exact wall time
+varies with phantom population, allocator fragmentation, and shared-FS
+I/O on a cluster.
 
 **Direct invocation (no Slurm), from the repo root:**
 
@@ -266,6 +283,97 @@ its memory footprint exceeds typical single-GPU budgets
 $+ \sim 360$ GB Adam state). The bundle reports the bound-inspired
 prediction for that case and runs the dense baseline only at the
 sweep scales described above.
+
+## Troubleshooting
+
+### `torch.cuda.is_available()` returns `False`
+
+Check the CUDA version your driver supports:
+
+```bash
+nvidia-smi --query-gpu=driver_version --format=csv,noheader
+```
+
+If `pip` pulled a PyTorch wheel built for a CUDA version newer than
+what your driver supports (e.g. a `cu130` wheel against a `535.x`
+driver that maxes out at CUDA 12.x), reinstall PyTorch from the
+matching index URL:
+
+```bash
+pip uninstall -y torch torchvision
+pip install torch torchvision --index-url https://download.pytorch.org/whl/cu121
+```
+
+Substitute `cu118`, `cu124`, etc. for older or newer drivers. The
+canonical list of available index URLs is at
+[pytorch.org/get-started/previous-versions](https://pytorch.org/get-started/previous-versions/).
+On a brand-new bring-up, do this *before* running anything heavy — the
+sweep scripts otherwise crash with a CUDA-unavailable error several
+seconds in.
+
+### OOM in the 256² FC backward pass on a 24 GB GPU
+
+The dense FC at 256² has weights ($\approx 5.6$ GB) + Adagrad state
+($\approx 5.6$ GB) + gradients ($\approx 5.6$ GB) $\approx 17$ GB.
+PyTorch needs another $\approx 3$ GB for activations and another
+$\approx 3$ GB for the all-gather workspace, pushing the total over
+the 24 GB limit. Two supported fixes:
+
+1. **Use a 48 GB GPU.** RTX 8000, A6000, A100, or H100. This is the
+   hardware used for the bundled reference artifacts.
+2. **Run FC via FSDP across multiple smaller GPUs**, with CPU offload
+   for the optimizer state. See
+   [`gpu_experiments/cluster/run_fc_fsdp.sh`](gpu_experiments/cluster/run_fc_fsdp.sh)
+   and
+   [`gpu_experiments/cluster/slurm/train_fc_fsdp.sbatch`](gpu_experiments/cluster/slurm/train_fc_fsdp.sbatch).
+
+Either way, set the allocator hint before launching the 256² sweep
+so cache fragmentation does not push a borderline run into OOM:
+
+```bash
+export PYTORCH_CUDA_ALLOC_CONF="expandable_segments:True"
+```
+
+### Slurm job exits with `No such file or directory` for `--output` / `--error`
+
+Slurm requires the `#SBATCH --output=...` and `#SBATCH --error=...`
+paths to exist before the job starts. The bundled `.sbatch` files
+`mkdir -p gpu_experiments/results/slurm` inside the script for exactly
+this reason; the failure mode appears only if you remove that line or
+rename `gpu_experiments/results/`.
+
+### Ridge solve degenerates at very small $N$ or very small $\lambda$
+
+At small $N$ and tiny $\lambda$ (e.g. $N = 4$, $\lambda = 10^{-4}$),
+the FC Gram matrix $Y Y^\top + \lambda I$ is numerically singular in
+FP32. The script catches the `torch.linalg.LinAlgError` and falls back
+to `torch.linalg.lstsq`; if that also fails, the FC matrix is set to
+zero, so the FC predictor returns the zero image and the cell's test
+MSE equals the mean-square pixel intensity of the test set. Such cells
+will visibly pull a sample-efficiency curve up at small $N$. To avoid
+them, drop the smallest entry of `--lambdas` (e.g. remove `1e-4`).
+
+### First iteration of a sweep stalls for ~1 minute
+
+The first call into the fan-beam forward / backward kernels triggers
+cuDNN autotuning, CUDA context initialisation, and lazy library loads,
+which together add roughly a minute to the very first cell of a fresh
+process. Subsequent cells in the same run skip this overhead. If you
+launch the 128² and 256² sweeps back-to-back in the same shell, the
+second invocation pays the cost again because each sweep is a separate
+Python process.
+
+### `python: command not found`
+
+Some Linux distributions ship only `python3`. Use `python3` directly,
+or create a `python` alias inside the venv:
+
+```bash
+ln -s "$(which python3)" .venv/bin/python
+```
+
+The bundled scripts call `python` and `python3` interchangeably; this
+alias keeps both code paths working.
 
 ## License of new assets
 
