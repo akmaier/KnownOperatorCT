@@ -33,6 +33,14 @@ venv/
 !/gpu_experiments/results/sample_efficiency_256/
 !/gpu_experiments/results/sample_efficiency_256/**
 
+# Slurm output directory: must exist *before* sbatch redirects stdout
+# (otherwise jobs fail at 0 s with no .out / .err written). Keep the
+# directory itself tracked, but not its per-job *.out / *.err files.
+!/gpu_experiments/results/slurm/
+!/gpu_experiments/results/slurm/.gitkeep
+/gpu_experiments/results/slurm/*.out
+/gpu_experiments/results/slurm/*.err
+
 # Re-exclude OS junk inside any allow-listed result subdirectory.
 /results/**/.DS_Store
 /gpu_experiments/results/**/.DS_Store
