@@ -1,7 +1,7 @@
 {
   "model": "fully_connected",
-  "device": "cuda (FSDP, lme221, 4x RTX 6000)",
-  "config_path": "configs/ct_fc_lme.yaml",
+  "device": "cuda (FSDP, 4x RTX 6000)",
+  "config_path": "configs/ct_fc_lab.yaml",
   "geometry": {
     "image_size": 256,
     "num_views": 90,

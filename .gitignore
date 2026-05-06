@@ -7,8 +7,8 @@ venv/
 .idea/
 .vscode/
 
-# run outputs — track the canonical reference artifacts but not the
-# heavy/ephemeral pieces (multi-GB checkpoints, per-job slurm logs).
+# run outputs — track only the canonical reference artifacts; keep
+# multi-GB checkpoints and per-job Slurm logs out of the repo.
 /results/*
 !/results/.gitkeep
 !/results/RESULTS.md
@@ -21,16 +21,6 @@ venv/
 !/results/ct_fully_connected_eval.json
 !/results/run_all.log
 !/results/run_all_steps.csv
-!/results/sample_efficiency_64/
-!/results/sample_efficiency_64/**
-!/results/ridge_fc_sample_efficiency.png
-!/results/ridge_fc_sample_efficiency.csv
-!/results/sample_efficiency_64/fc_ko_sample_efficiency.*
-!/results/sample_efficiency_128/fc_ko_sample_efficiency.*
-!/results/sample_efficiency_256/fc_ko_sample_efficiency.*
-!/results/sample_efficiency_64/fc_ko_sweep*
-!/results/sample_efficiency_128/fc_ko_sweep*
-!/results/sample_efficiency_256/fc_ko_sweep*
 !/results/sample_efficiency_128/
 !/results/sample_efficiency_128/**
 !/results/sample_efficiency_256/

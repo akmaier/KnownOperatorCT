@@ -19,7 +19,7 @@ This file is produced automatically by `harvest_results.py`. It contains every n
 | gpu_multi_processor_count | 80 |
 | cpu_model | x86_64 |
 | cpu_count | 32 |
-| disk_free | lme32:/volume1/cluster   32T   30T  1.8T  95% /cluster |
+| disk_free | <file-server>:/cluster   32T   30T  1.8T  95% /cluster |
 
 
 ## CPU surrogate (paper Figure 3, Table 2)
@@ -87,7 +87,7 @@ Last logged training loss at iter 9900: **0.000560**
 | iterations | 10000 |
 | wall time s | 37102.44 |
 | peak GPU memory MB | 0.0 |
-| device | cuda (FSDP, lme221, 4x RTX 6000) |
+| device | cuda (FSDP, 4x RTX 6000) |
 
 
 Last logged training loss at iter 5900: **0.118453**

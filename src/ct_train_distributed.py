@@ -167,11 +167,11 @@ def main() -> None:
     # backward, so each rank must hold one full copy of the unsharded weights
     # plus the gradients. On a 4-GPU FSDP run with 16 GB GPUs that means
     # ~5.6 GB weights + ~5.6 GB grads + activations + cache > 16 GB and OOMs
-    # (observed in jobs 760108 and 760111 on lme222). CPU offload trades
+    # (observed in jobs 760108 and 760111 (anonymized) on a 4x 16GB node). CPU offload trades
     # bandwidth for memory: parameter shards live on host, get H2D-copied for
     # each forward/backward, freeing GPU room for the all-gather buffer.
     #
-    # Trigger offload either when the model is bigger than the best LME GPU
+    # Trigger offload either when the model is bigger than the largest available GPU
     # (>= 40 GB ≈ A6000), or when the per-rank shard plus an unsharded weight
     # buffer wouldn't comfortably fit a 16 GB GPU. Override via FSDP_CPU_OFFLOAD=1.
     per_gpu_gib = (
