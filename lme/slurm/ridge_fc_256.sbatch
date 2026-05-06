@@ -2,7 +2,9 @@
 #SBATCH --job-name=ridge_fc_256
 #SBATCH --ntasks=1
 #SBATCH --cpus-per-task=4
-#SBATCH --mem=32G
+# Bulk of the work lives on GPU; host RAM mostly holds Python + the
+# .npz archive buffers (max ~150 MB). 8 GB is plenty.
+#SBATCH --mem=8G
 #SBATCH --gres=gpu:1
 #SBATCH --time=08:00:00
 # Need 48 GB GPU. Observed peak with linalg.solve workspace was 19.4 GB
